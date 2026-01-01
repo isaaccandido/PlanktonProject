@@ -41,7 +41,7 @@ public sealed class Startup
         }
         
         logger.LogInformation("Dependencies initialization complete.");
-        logger.LogInformation("Starting application...");
+        logger.LogInformation("Running engine...");
 
         engine.CliArgs = result;
         engine.Run();
