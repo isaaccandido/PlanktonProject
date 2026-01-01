@@ -1,13 +1,14 @@
-﻿using Plankton.Core.Domain.CLI.Models;
+﻿using Microsoft.Extensions.Logging;
+using Plankton.Core.Domain.CLI.Models;
 
 namespace Plankton.Core;
 
-public class Engine
+public class Engine(ILogger<Engine> logger)
 {
-    public CliArgsResult? CliArgs { get; set; }
-    
+    public required CliArgsResult CliArgs { get; set; }
+
     public void Run()
     {
-        
+        logger.LogInformation(System.Text.Json.JsonSerializer.Serialize(CliArgs));
     }
 }

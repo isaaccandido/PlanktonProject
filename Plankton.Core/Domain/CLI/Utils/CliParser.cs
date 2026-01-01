@@ -12,7 +12,7 @@ public static partial class CliParser
         var raw = ParseRaw(args, logger, out var helpRequested);
 
         var result = new CliArgsResult { HasHelp = helpRequested };
-        
+
         if (helpRequested || schema.Options == null) return result;
 
         foreach (var (name, opt) in schema.Options)
@@ -73,7 +73,7 @@ public static partial class CliParser
 
         return map;
     }
-    
+
     private static bool IsHelp(string arg)
     {
         return HelpOptions.Contains(arg, StringComparer.OrdinalIgnoreCase);

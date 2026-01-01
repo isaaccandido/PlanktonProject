@@ -10,15 +10,10 @@ public static class CliSchemaValidator
 
         foreach (var (name, opt) in schema.Options)
         {
-            if (!name.StartsWith('-'))
-            {
-                throw new InvalidOperationException($"Invalid option '{name}'.");
-            }
+            if (!name.StartsWith('-')) throw new InvalidOperationException($"Invalid option '{name}'.");
 
             if (string.IsNullOrWhiteSpace(opt.Help))
-            {
                 throw new InvalidOperationException($"Option '{name}' must define help.");
-            }
 
             switch (opt.Type)
             {

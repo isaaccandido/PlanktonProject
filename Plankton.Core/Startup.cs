@@ -17,7 +17,10 @@ public sealed class Startup
     {
     }
 
-    public static Startup GetInstance() => Instance.Value;
+    public static Startup GetInstance()
+    {
+        return Instance.Value;
+    }
 
     public void Boot(string[] args)
     {
@@ -39,7 +42,7 @@ public sealed class Startup
             help.Print(schema);
             return;
         }
-        
+
         logger.LogInformation("Dependencies initialization complete.");
         logger.LogInformation("Running engine...");
 
@@ -53,7 +56,7 @@ public sealed class Startup
             .UseSerilog((ctx, services, cfg) =>
             {
                 cfg.ReadFrom.Configuration(ctx.Configuration)
-                   .ReadFrom.Services(services);
+                    .ReadFrom.Services(services);
             })
             .ConfigureServices((ctx, services) =>
             {

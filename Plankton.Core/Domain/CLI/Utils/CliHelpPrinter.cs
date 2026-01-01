@@ -9,10 +9,13 @@ public static partial class CliHelpPrinter
     {
         logger.LogAvailableCommandLineOptions();
 
-        foreach (var (name, opt) in schema.Options)
+        if (schema.Options == null)
         {
-            logger.LogOptionHelp(name, opt.Help);
+            logger.LogInformation("No options specified.");
+            return;
         }
+
+        foreach (var (name, opt) in schema.Options) logger.LogOptionHelp(name, opt.Help);
     }
 
     [LoggerMessage(LogLevel.Information, "Available command line options:")]

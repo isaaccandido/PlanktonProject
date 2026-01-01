@@ -6,5 +6,8 @@ namespace Plankton.Core.Services;
 
 public sealed class CliHelpPrinterService(ILogger<CliHelpPrinterService> logger)
 {
-    public void Print(CliSchema schema) => CliHelpPrinter.Print(schema, logger);
+    public void Print(CliSchema schema)
+    {
+        CliHelpPrinter.Print(schema, logger);
+    }
 }

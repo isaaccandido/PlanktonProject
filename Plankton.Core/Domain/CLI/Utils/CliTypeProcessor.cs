@@ -71,10 +71,10 @@ public static partial class CliTypeProcessor
         logger.LogInvalidEnum(name, values);
         return opt.Default?.ToString() ?? opt.Values![0];
     }
-    
+
     [LoggerMessage(LogLevel.Warning, "Invalid value for '{name}': {reason}. Using default.")]
     static partial void LogInvalidValueUsingDefault(this ILogger logger, string name, string reason);
-    
+
     [LoggerMessage(LogLevel.Warning, "'{name}' expects true or false.")]
     static partial void LogExpectsBoolean(this ILogger logger, string name);
 

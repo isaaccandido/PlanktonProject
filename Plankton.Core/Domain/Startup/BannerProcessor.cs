@@ -1,10 +1,9 @@
 ﻿using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace Plankton.Core.Domain.Startup;
 
-public sealed partial class BannerProcessor(IConfiguration configuration, ILogger<BannerProcessor> logger)
+public sealed partial class BannerProcessor(IConfiguration configuration)
 {
     private const string BannerFileName = "banner.txt";
     private static readonly Regex PlaceholderRegex = MyRegex();
@@ -16,12 +15,12 @@ public sealed partial class BannerProcessor(IConfiguration configuration, ILogge
             if (!File.Exists(BannerFileName)) return;
 
             var banner = File.ReadAllText(BannerFileName);
-            
+
             banner = ReplacePlaceholders(banner);
 
             Console.WriteLine(banner);
         }
-        catch (Exception _)
+        catch (Exception)
         {
             // ignored
         }
