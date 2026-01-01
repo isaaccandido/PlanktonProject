@@ -6,7 +6,7 @@ namespace Plankton.Core.Services;
 
 public sealed class CliParserService(ILogger<CliParserService> logger)
 {
-    public CliParseResult Parse(string[] args, CliSchema schema)
+    public CliArgsResult Parse(string[] args, CliSchema schema)
     {
         return CliParser.Parse(args, schema, logger);
     }

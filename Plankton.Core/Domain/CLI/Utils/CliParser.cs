@@ -7,13 +7,13 @@ public static partial class CliParser
 {
     private static readonly string[] HelpOptions = ["-help", "--help", "-h"];
 
-    public static CliParseResult Parse(string[] args, CliSchema schema, ILogger logger)
+    public static CliArgsResult Parse(string[] args, CliSchema schema, ILogger logger)
     {
         var raw = ParseRaw(args, logger, out var helpRequested);
 
-        var result = new CliParseResult { HasHelp = helpRequested };
-
-        if (schema.Options == null) return result;
+        var result = new CliArgsResult { HasHelp = helpRequested };
+        
+        if (helpRequested || schema.Options == null) return result;
 
         foreach (var (name, opt) in schema.Options)
         {
