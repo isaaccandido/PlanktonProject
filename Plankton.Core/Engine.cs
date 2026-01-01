@@ -32,13 +32,16 @@ public sealed class Engine
         using var host = CreateHost(args);
 
         var logger = host.Services.GetRequiredService<ILogger<Engine>>();
+
+        logger.LogInformation("Initializing application...");
+
         var schema = host.Services.GetRequiredService<CliSchema>();
         var parser = host.Services.GetRequiredService<CliParserService>();
         var help = host.Services.GetRequiredService<CliHelpPrinterService>();
 
         var banner = host.Services.GetRequiredService<BannerProcessor>();
         banner.PrintBanner();
-        
+
         var result = parser.Parse(args, schema);
 
         if (result.HasHelp)
@@ -46,7 +49,7 @@ public sealed class Engine
             help.Print(schema);
             return;
         }
-        
+
         logger.LogInformation("Startup complete.");
     }
 
@@ -54,15 +57,21 @@ public sealed class Engine
     {
         return Host.CreateDefaultBuilder(args)
             .UseSerilog((ctx, services, cfg) =>
-                cfg.ReadFrom.Configuration(ctx.Configuration)
-                    .ReadFrom.Services(services))
+            {
+                cfg.ReadFrom.Configuration(ctx.Configuration).ReadFrom.Services(services);
+            })
             .ConfigureServices((ctx, services) =>
             {
-                services.AddSingleton<CliParserService>();
-                services.AddSingleton<CliHelpPrinterService>();
-                services.AddSingleton<CliSchemaFactory>();
-                services.AddSingleton<CliSchema>(sp => sp.GetRequiredService<CliSchemaFactory>().Build());
-                services.AddSingleton<BannerProcessor>();
+                AddCliToolsToContainer(services);
             }).Build();
+    }
+
+    private static void AddCliToolsToContainer(IServiceCollection services)
+    {
+        services.AddSingleton<CliParserService>();
+        services.AddSingleton<CliHelpPrinterService>();
+        services.AddSingleton<CliSchemaFactory>();
+        services.AddSingleton<CliSchema>(sp => sp.GetRequiredService<CliSchemaFactory>().Build());
+        services.AddSingleton<BannerProcessor>();
     }
 }

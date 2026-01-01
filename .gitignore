@@ -21,7 +21,6 @@ packages/
 
 # Mono / Xamarin / Mac
 *.DS_Store
-*.app
 *.apk
 *.ipa
 
