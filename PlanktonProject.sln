@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plankton.Core", "Plankton.Core\Plankton.Core.csproj", "{1FF41A81-1ED9-431A-89CB-461BE78286FB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plankton.DataAccess", "Plankton.DataAccess\Plankton.DataAccess.csproj", "{EF027017-3F0F-40F7-9943-58C00324406C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plankton.App", "Plankton.App\Plankton.App.csproj", "{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1FF41A81-1ED9-431A-89CB-461BE78286FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1FF41A81-1ED9-431A-89CB-461BE78286FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1FF41A81-1ED9-431A-89CB-461BE78286FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1FF41A81-1ED9-431A-89CB-461BE78286FB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EF027017-3F0F-40F7-9943-58C00324406C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EF027017-3F0F-40F7-9943-58C00324406C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EF027017-3F0F-40F7-9943-58C00324406C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EF027017-3F0F-40F7-9943-58C00324406C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

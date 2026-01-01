@@ -1,0 +1,60 @@
+# Build folders
+bin/
+obj/
+out/
+
+# NuGet packages
+*.nupkg
+packages/
+*.snupkg
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+/_ReSharper.Caches/
+
+# User-specific files
+*.user
+*.suo
+*.userprefs
+*.userosscache
+
+# Mono / Xamarin / Mac
+*.DS_Store
+*.app
+*.apk
+*.ipa
+
+# VS Code
+.vscode/
+
+# Log files
+*.log
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Rider module / workspace
+*.idea
+.idea_modules/
+
+# Dotnet global tools cache
+dotnet-tools.json
+
+# Ignore published output
+publish/
