@@ -76,6 +76,8 @@ public sealed class Startup
 
     private static void AddServices(IServiceCollection services, IConfiguration configuration)
     {
+        configuration["application:baseAddress"] = GetBaseAddressFromEnvironment();
+
         services.AddSingleton<CliParserService>();
         services.AddSingleton<CliHelpPrinterService>();
         services.AddSingleton<CliSchemaFactory>();
@@ -88,7 +90,9 @@ public sealed class Startup
             .Get<CommandSourceSettingsModel>() ?? new CommandSourceSettingsModel();
 
         if (commandSourceSettings is { Http.Enabled: false, Telegram.Enabled: false })
+        {
             throw new InvalidOperationException("At least one command source must be enabled (HTTP or Telegram).");
+        }
 
         var allSourceTypes = Assembly.GetExecutingAssembly()
             .GetTypes()
@@ -112,7 +116,6 @@ public sealed class Startup
         services.AddSingleton<ICommandHandlerResolver, CommandHandlerResolver>();
         services.AddSingleton<CommandBus>();
 
-        // ─── Command Handlers ──────────────────────────────────
         services.AddSingleton<ShutdownSuiteCommandHandler>();
         services.AddSingleton<ICommandHandler>(sp => sp.GetRequiredService<ShutdownSuiteCommandHandler>());
         AddCommandHandlers(services);
@@ -137,5 +140,11 @@ public sealed class Startup
     {
         return Environment.GetEnvironmentVariable("PLANKTON_ADMIN_TOKEN")
                ?? throw new InvalidOperationException("Environment variable BOT_ADMIN_TOKEN is not defined.");
+    }
+
+    private static string GetBaseAddressFromEnvironment()
+    {
+        return Environment.GetEnvironmentVariable("PLANKTON_BASE_ADDRESS")
+               ?? throw new InvalidOperationException("Environment variable PLANKTON_BASE_ADDRESS is not defined.");
     }
 }
