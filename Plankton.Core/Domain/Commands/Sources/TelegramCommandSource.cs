@@ -11,6 +11,8 @@ public class TelegramCommandSource(ILogger<HttpCommandSource> logger) : ICommand
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        // TODO implement telegram source
+        
         logger.LogWarning("Telegram is still in development...");
 
         CommandReceived?.Invoke(new CommandContext()

@@ -52,7 +52,6 @@ public sealed class Startup
 
         engine.CliArgs = result;
 
-        // Dynamically register enabled command sources
         var commandSources = host.Services.GetServices<ICommandSource>();
         foreach (var source in commandSources)
         {
@@ -91,13 +90,11 @@ public sealed class Startup
         var commandSourceSettings = configuration.GetSection("commandSources")
             .Get<CommandSourceSettings>() ?? new CommandSourceSettings();
 
-        // Fail if no source is enabled
-        if (!commandSourceSettings.HttpEnabled && !commandSourceSettings.TelegramEnabled)
+        if (commandSourceSettings is { HttpEnabled: false, TelegramEnabled: false })
         {
             throw new InvalidOperationException("At least one command source must be enabled (HTTP or Telegram).");
         }
 
-        // ─── Dynamically register enabled command sources ───────
         var allSourceTypes = Assembly.GetExecutingAssembly()
             .GetTypes()
             .Where(t => !t.IsAbstract && typeof(ICommandSource).IsAssignableFrom(t));
@@ -108,14 +105,10 @@ public sealed class Startup
                 type == typeof(HttpCommandSource) && commandSourceSettings.HttpEnabled ||
                 type == typeof(TelegramCommandSource) && commandSourceSettings.TelegramEnabled;
 
-            if (enabled)
-            {
-                // Register concrete type
-                services.AddSingleton(type);
-
-                // Register as ICommandSource (same instance)
-                services.AddSingleton(typeof(ICommandSource), sp => sp.GetRequiredService(type));
-            }
+            if (!enabled) continue;
+            
+            services.AddSingleton(type);
+            services.AddSingleton(typeof(ICommandSource), sp => sp.GetRequiredService(type));
         }
 
         // ─── Command Pipeline ──────────────────────────────────

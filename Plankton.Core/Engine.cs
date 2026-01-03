@@ -7,7 +7,7 @@ namespace Plankton.Core;
 
 public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
 {
-    public required CliArgsResultModel CliArgs { get; set; }
+    public required CliArgsResultModel CliArgs { get; set; } // TODO find an use for CLI args
 
     private readonly List<ICommandSource> _commandSources = [];
     private readonly CancellationTokenSource _cts = new();

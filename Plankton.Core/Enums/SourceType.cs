@@ -2,5 +2,6 @@
 
 public enum SourceType
 {
-    Http
+    Http,
+    Telegram
 }
