@@ -88,10 +88,14 @@ Each startup parameter maps to a `CliOption` definition with the following field
 Plankton can receive commands from multiple sources. Each source can be enabled or disabled in `appsettings.json`:
 
 ```json
-"commandSources": {
-  "httpEnabled": true,
-  "telegramEnabled": false
-}
+  "commandSources": {
+    "http": {
+      "enabled": true
+    },
+    "telegram": {
+      "enabled": true
+    }
+  },
 ```
 
 * **HTTP** – receives commands via a REST endpoint (`/command`)  
