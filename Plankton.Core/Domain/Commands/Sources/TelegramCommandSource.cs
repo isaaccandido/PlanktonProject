@@ -12,17 +12,17 @@ public class TelegramCommandSource(ILogger<HttpCommandSource> logger) : ICommand
     public Task StartAsync(CancellationToken cancellationToken)
     {
         // TODO implement telegram source
-        
+
         logger.LogWarning("Telegram is still in development...");
 
-        CommandReceived?.Invoke(new CommandContext()
+        CommandReceived?.Invoke(new CommandContext
         {
             Command = new CommandModel
             {
-                  Name =  "Telegram",
-                  Args = []
+                Name = "Telegram",
+                Args = []
             },
-            CorrelationId =  Guid.NewGuid().ToString()
+            CorrelationId = Guid.NewGuid().ToString()
         });
 
         return Task.CompletedTask;

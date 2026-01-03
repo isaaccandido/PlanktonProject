@@ -24,7 +24,10 @@ public sealed class Startup
     {
     }
 
-    public static Startup GetInstance() => Instance.Value;
+    public static Startup GetInstance()
+    {
+        return Instance.Value;
+    }
 
     public async Task Boot(string[] args)
     {
@@ -53,10 +56,7 @@ public sealed class Startup
         engine.CliArgs = result;
 
         var commandSources = host.Services.GetServices<ICommandSource>();
-        foreach (var source in commandSources)
-        {
-            engine.RegisterCommandSource(source);
-        }
+        foreach (var source in commandSources) engine.RegisterCommandSource(source);
 
         await engine.RunAsync();
     }
@@ -91,9 +91,7 @@ public sealed class Startup
             .Get<CommandSourceSettings>() ?? new CommandSourceSettings();
 
         if (commandSourceSettings is { HttpEnabled: false, TelegramEnabled: false })
-        {
             throw new InvalidOperationException("At least one command source must be enabled (HTTP or Telegram).");
-        }
 
         var allSourceTypes = Assembly.GetExecutingAssembly()
             .GetTypes()
@@ -102,11 +100,11 @@ public sealed class Startup
         foreach (var type in allSourceTypes)
         {
             var enabled =
-                type == typeof(HttpCommandSource) && commandSourceSettings.HttpEnabled ||
-                type == typeof(TelegramCommandSource) && commandSourceSettings.TelegramEnabled;
+                (type == typeof(HttpCommandSource) && commandSourceSettings.HttpEnabled) ||
+                (type == typeof(TelegramCommandSource) && commandSourceSettings.TelegramEnabled);
 
             if (!enabled) continue;
-            
+
             services.AddSingleton(type);
             services.AddSingleton(typeof(ICommandSource), sp => sp.GetRequiredService(type));
         }
@@ -125,7 +123,7 @@ public sealed class Startup
         services.AddSingleton<ICommandHandlerResolver, CommandHandlerResolver>();
         services.AddSingleton<CommandBus>();
     }
-    
+
     private static void AddCommandHandlers(IServiceCollection services)
     {
         var handlerTypes = Assembly.GetExecutingAssembly()
