@@ -8,6 +8,7 @@ namespace Plankton.Core.Domain.Commands.Handlers;
 public sealed partial class ListBotsCommandHandler(ILogger<ListBotsCommandHandler> logger) : ICommandHandler
 {
     public string CommandName => "list-bots";
+    public string Description => "Lists all bots available.";
     public int MinArgs => 0;
     public string[]? FixedArgs => [];
 

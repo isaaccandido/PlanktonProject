@@ -5,6 +5,7 @@ namespace Plankton.Core.Interfaces;
 public interface ICommandHandler
 {
     string CommandName { get; }
+    string? Description { get; }
     int MinArgs { get; }
     string[]? FixedArgs { get; }
 

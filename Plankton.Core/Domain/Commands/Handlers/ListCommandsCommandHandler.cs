@@ -9,17 +9,28 @@ public sealed class ListCommandsCommandHandler(IServiceProvider provider) : ICom
     public string CommandName => "list-commands";
     public int MinArgs => 0;
     public string[]? FixedArgs => [];
+    public string? Description => "Lists all available commands.";
 
     public Task<object?> HandleAsync(CommandModel command)
     {
         var commandList = provider.GetServices<ICommandHandler>()
-            .Where(h => h.GetType() != typeof(ListCommandsCommandHandler))
-            .Select(h => h.CommandName)
-            .ToList();
+            .ToDictionary(
+                handler => handler.CommandName,
+                handler =>
+                {
+                    var dict = new Dictionary<string, object?> { ["minimumArgsCount"] = handler.MinArgs };
+                    if (!string.IsNullOrWhiteSpace(handler.Description)) dict["description"] = handler.Description;
+                    if (handler.FixedArgs is { Length: > 0 }) dict["possibleArguments"] = handler.FixedArgs;
 
-        return Task.FromResult<object?>(new Dictionary<string, object?>
+                    return dict;
+                }
+            );
+
+        var response = new Dictionary<string, object?>
         {
-            { "availableCommands", commandList }
-        });
+            ["availableCommands"] = commandList
+        };
+
+        return Task.FromResult<object?>(response);
     }
 }

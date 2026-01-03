@@ -8,7 +8,8 @@ namespace Plankton.Core.Domain.Commands.Handlers;
 
 public sealed partial class StartBotCommandHandler(ILogger<StartBotCommandHandler> logger) : ICommandHandler
 {
-    public string CommandName => "start";
+    public string CommandName => "start-bot";
+    public string Description => "Starts a bot or multiple bots by name.";
     public int MinArgs => 1;
     public string[]? FixedArgs => [];
 

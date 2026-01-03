@@ -115,8 +115,8 @@ public sealed class Startup
         services.AddSingleton<CommandBus>();
 
         // ─── Command Handlers ──────────────────────────────────
-        services.AddSingleton<ShutdownCommandHandler>();
-        services.AddSingleton<ICommandHandler>(sp => sp.GetRequiredService<ShutdownCommandHandler>());
+        services.AddSingleton<ShutdownSuiteCommandHandler>();
+        services.AddSingleton<ICommandHandler>(sp => sp.GetRequiredService<ShutdownSuiteCommandHandler>());
         AddCommandHandlers(services);
     }
 
@@ -126,7 +126,7 @@ public sealed class Startup
             .GetTypes()
             .Where(t => !t.IsAbstract &&
                         typeof(ICommandHandler).IsAssignableFrom(t) &&
-                        t != typeof(ShutdownCommandHandler));
+                        t != typeof(ShutdownSuiteCommandHandler));
 
         foreach (var handlerType in handlerTypes)
         {
