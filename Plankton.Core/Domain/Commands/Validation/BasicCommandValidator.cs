@@ -33,7 +33,7 @@ public sealed class BasicCommandValidator(ICommandHandlerResolver resolver) : IC
         });
 
         if (invalidArg == null) return Task.CompletedTask;
-        
+
         throw new InvalidCommandException(
             $"Invalid argument '{invalidArg}' for command '{command.Name}'. " +
             $"Allowed: {string.Join(", ", fixedArgs)}",

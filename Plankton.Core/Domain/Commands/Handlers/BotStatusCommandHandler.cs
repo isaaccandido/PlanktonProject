@@ -15,9 +15,7 @@ public sealed class BotStatusCommandHandler(ILogger<BotStatusCommandHandler> log
     public Task<object?> HandleAsync(CommandModel command)
     {
         if (command.Args is null || command.Args.Count == 0)
-        {
             throw new InvalidCommandException("Bot name must be provided");
-        }
 
         var botNames = command.Args
             .Where(a => !string.IsNullOrWhiteSpace(a))
@@ -25,10 +23,7 @@ public sealed class BotStatusCommandHandler(ILogger<BotStatusCommandHandler> log
             .Distinct()
             .ToList();
 
-        if (botNames.Count == 0)
-        {
-            throw new InvalidCommandException("Bot name must be provided");
-        }
+        if (botNames.Count == 0) throw new InvalidCommandException("Bot name must be provided");
 
         logger.LogInformation("Attempting to get bot status for the following bots: {}", string.Join(", ", botNames));
 

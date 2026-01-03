@@ -13,7 +13,7 @@ using Plankton.Core.Interfaces;
 namespace Plankton.Core.Domain.Commands.Sources;
 
 public sealed partial class HttpCommandSource(
-    ILogger<HttpCommandSource> logger, 
+    ILogger<HttpCommandSource> logger,
     IConfiguration configuration) : ICommandSource
 {
     private const string XCorrelationId = "X-Correlation-Id";

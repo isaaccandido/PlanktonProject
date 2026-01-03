@@ -88,9 +88,7 @@ public sealed class Startup
             .Get<CommandSourceSettingsModel>() ?? new CommandSourceSettingsModel();
 
         if (commandSourceSettings is { Http.Enabled: false, Telegram.Enabled: false })
-        {
             throw new InvalidOperationException("At least one command source must be enabled (HTTP or Telegram).");
-        }
 
         var allSourceTypes = Assembly.GetExecutingAssembly()
             .GetTypes()
