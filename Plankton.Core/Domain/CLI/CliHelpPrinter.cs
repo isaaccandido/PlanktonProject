@@ -1,21 +1,21 @@
 ﻿using Microsoft.Extensions.Logging;
-using Plankton.Core.Domain.CLI.Models;
+using Plankton.Core.Domain.Models;
 
 namespace Plankton.Core.Domain.CLI.Utils;
 
 public static partial class CliHelpPrinter
 {
-    public static void Print(CliSchema schema, ILogger logger)
+    public static void Print(CliSchemaModel schemaModel, ILogger logger)
     {
         logger.LogAvailableCommandLineOptions();
 
-        if (schema.Options == null)
+        if (schemaModel.Options == null)
         {
             logger.LogInformation("No options specified.");
             return;
         }
 
-        foreach (var (name, opt) in schema.Options) logger.LogOptionHelp(name, opt.Help);
+        foreach (var (name, opt) in schemaModel.Options) logger.LogOptionHelp(name, opt.Help);
     }
 
     [LoggerMessage(LogLevel.Information, "Available command line options:")]

@@ -1,4 +1,4 @@
-﻿using Plankton.Core.Domain.CLI.Models;
+﻿using Plankton.Core.Domain.Models;
 
 namespace Plankton.Core.Domain.CLI.Utils;
 
@@ -8,13 +8,13 @@ public sealed class CliSchemaFactory(IConfiguration config)
 {
     private const string CliSectionName = "cli-options";
 
-    public CliSchema Build()
+    public CliSchemaModel Build()
     {
         var section = config.GetSection(CliSectionName);
 
-        var options = section.Get<Dictionary<string, CliOption>>();
+        var options = section.Get<Dictionary<string, CliOptionModel>>();
 
-        var schema = new CliSchema { Options = options };
+        var schema = new CliSchemaModel { Options = options };
 
         CliSchemaValidator.Validate(schema);
 

@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
-using Plankton.Core.Domain.CLI.Models;
+using Plankton.Core.Domain.Models;
 
 namespace Plankton.Core.Domain.CLI.Utils;
 
@@ -7,15 +7,15 @@ public static partial class CliParser
 {
     private static readonly string[] HelpOptions = ["-help", "--help", "-h"];
 
-    public static CliArgsResult Parse(string[] args, CliSchema schema, ILogger logger)
+    public static CliArgsResultModel Parse(string[] args, CliSchemaModel schemaModel, ILogger logger)
     {
         var raw = ParseRaw(args, logger, out var helpRequested);
 
-        var result = new CliArgsResult { HasHelp = helpRequested };
+        var result = new CliArgsResultModel { HasHelp = helpRequested };
 
-        if (helpRequested || schema.Options == null) return result;
+        if (helpRequested || schemaModel.Options == null) return result;
 
-        foreach (var (name, opt) in schema.Options)
+        foreach (var (name, opt) in schemaModel.Options)
         {
             if (!raw.TryGetValue(name, out var values))
             {

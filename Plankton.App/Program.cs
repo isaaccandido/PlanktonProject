@@ -1,3 +1,3 @@
 ﻿using Plankton.Core;
 
-Startup.GetInstance().Boot(args);
+await Startup.GetInstance().Boot(args);

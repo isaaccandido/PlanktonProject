@@ -1,6 +1,6 @@
-﻿namespace Plankton.Core.Domain.CLI.Models;
+﻿namespace Plankton.Core.Domain.Models;
 
-public sealed class CliOption
+public sealed class CliOptionModel
 {
     public string Type { get; init; } = null!;
     public int? MinArgs { get; init; }

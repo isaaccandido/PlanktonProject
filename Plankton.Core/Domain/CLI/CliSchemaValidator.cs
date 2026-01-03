@@ -1,14 +1,14 @@
-﻿using Plankton.Core.Domain.CLI.Models;
+﻿using Plankton.Core.Domain.Models;
 
 namespace Plankton.Core.Domain.CLI.Utils;
 
 public static class CliSchemaValidator
 {
-    public static void Validate(CliSchema schema)
+    public static void Validate(CliSchemaModel schemaModel)
     {
-        if (schema.Options == null || schema.Options.Count == 0) return;
+        if (schemaModel.Options == null || schemaModel.Options.Count == 0) return;
 
-        foreach (var (name, opt) in schema.Options)
+        foreach (var (name, opt) in schemaModel.Options)
         {
             if (!name.StartsWith('-')) throw new InvalidOperationException($"Invalid option '{name}'.");
 

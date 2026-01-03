@@ -1,32 +1,32 @@
 ﻿using Microsoft.Extensions.Logging;
-using Plankton.Core.Domain.CLI.Models;
+using Plankton.Core.Domain.Models;
 
 namespace Plankton.Core.Domain.CLI.Utils;
 
 public static partial class CliTypeProcessor
 {
-    public static object? ConvertValue(string name, CliOption option, List<string> values, ILogger logger)
+    public static object? ConvertValue(string name, CliOptionModel optionModel, List<string> values, ILogger logger)
     {
         try
         {
-            return option.Type switch
+            return optionModel.Type switch
             {
                 "flag" => true,
-                "bool" => ParseBool(name, values, option, logger),
-                "int" => ParseInt(name, values, option, logger),
-                "string" => ParseString(name, values, option, logger),
-                "enum" => ParseEnum(name, values, option, logger),
-                _ => option.Default
+                "bool" => ParseBool(name, values, optionModel, logger),
+                "int" => ParseInt(name, values, optionModel, logger),
+                "string" => ParseString(name, values, optionModel, logger),
+                "enum" => ParseEnum(name, values, optionModel, logger),
+                _ => optionModel.Default
             };
         }
         catch (Exception ex)
         {
             logger.LogInvalidValueUsingDefault(name, ex.Message);
-            return option.Default;
+            return optionModel.Default;
         }
     }
 
-    private static bool ParseBool(string name, List<string> values, CliOption opt, ILogger logger)
+    private static bool ParseBool(string name, List<string> values, CliOptionModel opt, ILogger logger)
     {
         if (values.Count == 1 && bool.TryParse(values[0], out var b))
             return b;
@@ -35,7 +35,7 @@ public static partial class CliTypeProcessor
         return opt.Default is true;
     }
 
-    private static int ParseInt(string name, List<string> values, CliOption opt, ILogger logger)
+    private static int ParseInt(string name, List<string> values, CliOptionModel opt, ILogger logger)
     {
         if (values.Count == 1 && int.TryParse(values[0], out var i))
             return i;
@@ -44,7 +44,7 @@ public static partial class CliTypeProcessor
         return opt.Default is int d ? d : 0;
     }
 
-    private static string[] ParseString(string name, List<string> values, CliOption opt, ILogger logger)
+    private static string[] ParseString(string name, List<string> values, CliOptionModel opt, ILogger logger)
     {
         if (opt.MinArgs.HasValue && values.Count < opt.MinArgs.Value)
             logger.LogExpectsAtLeast(name, opt.MinArgs.Value);
@@ -55,7 +55,7 @@ public static partial class CliTypeProcessor
         return values.ToArray();
     }
 
-    private static string ParseEnum(string name, List<string> values, CliOption opt, ILogger logger)
+    private static string ParseEnum(string name, List<string> values, CliOptionModel opt, ILogger logger)
     {
         if (values.Count != 1)
         {

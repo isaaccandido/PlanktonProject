@@ -1,13 +1,13 @@
 ﻿using Microsoft.Extensions.Logging;
-using Plankton.Core.Domain.CLI.Models;
 using Plankton.Core.Domain.CLI.Utils;
+using Plankton.Core.Domain.Models;
 
 namespace Plankton.Core.Services;
 
 public sealed class CliParserService(ILogger<CliParserService> logger)
 {
-    public CliArgsResult Parse(string[] args, CliSchema schema)
+    public CliArgsResultModel Parse(string[] args, CliSchemaModel schemaModel)
     {
-        return CliParser.Parse(args, schema, logger);
+        return CliParser.Parse(args, schemaModel, logger);
     }
 }
