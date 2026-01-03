@@ -9,6 +9,8 @@ public sealed class ShutdownCommandHandler(Func<Engine> engineFactory) : IComman
         engineFactory ?? throw new ArgumentNullException(nameof(engineFactory));
 
     public string CommandName => "shutdown";
+    public int MinArgs => 0;
+    public string[]? FixedArgs => [];
 
     public async Task<object?> HandleAsync(CommandModel command)
     {

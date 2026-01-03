@@ -7,7 +7,9 @@ namespace Plankton.Core.Domain.Commands.Handlers;
 
 public sealed partial class ListBotsCommandHandler(ILogger<ListBotsCommandHandler> logger) : ICommandHandler
 {
-    public string CommandName => "list";
+    public string CommandName => "list-bots";
+    public int MinArgs => 0;
+    public string[]? FixedArgs => [];
 
     // For demo purposes, we'll just return a fixed list of bot names.
     // You can replace this with your real bot manager/service.

@@ -1,16 +1,17 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Plankton.Core.Domain.CLI.Utils;
+using Plankton.Core.Domain.CLI;
 using Plankton.Core.Domain.Commands.Handlers;
 using Plankton.Core.Domain.Commands.Infrastructure;
 using Plankton.Core.Domain.Commands.Sources;
 using Plankton.Core.Domain.Commands.Validation;
 using Plankton.Core.Domain.Models;
-using Plankton.Core.Domain.Startup;
 using Plankton.Core.Interfaces;
 using Plankton.Core.Services;
 using Serilog;
+using System.Reflection;
+using Plankton.Core.Domain.Startup;
 
 namespace Plankton.Core;
 
@@ -67,7 +68,7 @@ public sealed class Startup
                 cfg.ReadFrom.Configuration(ctx.Configuration)
                     .ReadFrom.Services(services);
             })
-            .ConfigureServices((ctx, services) => { AddServices(services); })
+            .ConfigureServices((ctx, services) => AddServices(services))
             .Build();
     }
 
@@ -82,6 +83,7 @@ public sealed class Startup
 
         // ─── Engine ────────────────────────────────────────────
         services.AddSingleton<Engine>();
+        services.AddSingleton<Func<Engine>>(sp => sp.GetRequiredService<Engine>);
 
         // ─── Command Sources ───────────────────────────────────
         services.AddSingleton<HttpCommandSource>();
@@ -92,23 +94,29 @@ public sealed class Startup
         services.AddSingleton<CommandRateLimiter>();
 
         // ─── Command Handlers ──────────────────────────────────
-        // Use factory injection to break circular dependency for ShutdownCommandHandler
-        services.AddSingleton<ShutdownCommandHandler>(sp =>
-        {
-            // Provide a factory to retrieve Engine lazily
-            var engineFactory = new Func<Engine>(sp.GetRequiredService<Engine>);
-            return new ShutdownCommandHandler(engineFactory);
-        });
-
+        services.AddSingleton<ShutdownCommandHandler>();
         services.AddSingleton<ICommandHandler>(sp => sp.GetRequiredService<ShutdownCommandHandler>());
 
-        // Other handlers that don’t depend on Engine directly
-        services.AddSingleton<ICommandHandler, StartBotCommandHandler>();
-        services.AddSingleton<ICommandHandler, ListBotsCommandHandler>();
+        AddCommandHandlers(services);
 
         // ─── Resolver & Bus ────────────────────────────────────
         services.AddSingleton<ICommandHandlerResolver, CommandHandlerResolver>();
         services.AddSingleton<CommandBus>();
+    }
+
+    private static void AddCommandHandlers(IServiceCollection services)
+    {
+        var handlerTypes = Assembly.GetExecutingAssembly()
+            .GetTypes()
+            .Where(t => !t.IsAbstract &&
+                        typeof(ICommandHandler).IsAssignableFrom(t) &&
+                        t != typeof(ShutdownCommandHandler));
+
+        foreach (var handlerType in handlerTypes)
+        {
+            services.AddSingleton(typeof(ICommandHandler), handlerType);
+            services.AddSingleton(handlerType);
+        }
     }
 
     private static string GetSuiteToken()

@@ -1,6 +1,6 @@
 ﻿using Plankton.Core.Domain.Models;
 
-namespace Plankton.Core.Domain.CLI.Utils;
+namespace Plankton.Core.Domain.CLI;
 
 public static class CliSchemaValidator
 {

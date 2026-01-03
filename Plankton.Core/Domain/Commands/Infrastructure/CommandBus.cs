@@ -11,11 +11,9 @@ public sealed class CommandBus(
 {
     public async Task<object?> DispatchAsync(CommandContext context)
     {
-        if (context?.Command is null)
-            throw new InvalidCommandException("Command is missing");
+        if (context.Command is null) throw new InvalidCommandException("Command is missing");
 
-        foreach (var validator in validators)
-            await validator.ValidateAsync(context.Command);
+        foreach (var validator in validators) await validator.ValidateAsync(context.Command);
 
         await authorizer.AuthorizeAsync(context);
 

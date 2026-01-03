@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Plankton.Core.Domain.Models;
 
-namespace Plankton.Core.Domain.CLI.Utils;
+namespace Plankton.Core.Domain.CLI;
 
 public static partial class CliParser
 {

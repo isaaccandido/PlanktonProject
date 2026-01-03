@@ -9,6 +9,8 @@ namespace Plankton.Core.Domain.Commands.Handlers;
 public sealed partial class StartBotCommandHandler(ILogger<StartBotCommandHandler> logger) : ICommandHandler
 {
     public string CommandName => "start";
+    public int MinArgs => 1;
+    public string[]? FixedArgs => [];
 
     public Task<object?> HandleAsync(CommandModel command)
     {
@@ -18,7 +20,6 @@ public sealed partial class StartBotCommandHandler(ILogger<StartBotCommandHandle
 
         LogStartingBotBotNameSourceSource(logger, botName, command.Source);
 
-        // Return null because "start" does not produce a value
         return Task.FromResult<object?>(null);
     }
 

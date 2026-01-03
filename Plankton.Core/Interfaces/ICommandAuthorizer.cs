@@ -1,5 +1,4 @@
-﻿using Plankton.Core.Domain.Commands;
-using Plankton.Core.Domain.Commands.Infrastructure;
+﻿using Plankton.Core.Domain.Commands.Infrastructure;
 
 namespace Plankton.Core.Interfaces;
 

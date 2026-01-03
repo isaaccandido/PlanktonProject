@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
-using Plankton.Core.Domain.CLI.Utils;
 using Plankton.Core.Domain.Models;
+using CliHelpPrinter = Plankton.Core.Domain.CLI.CliHelpPrinter;
 
 namespace Plankton.Core.Services;
 

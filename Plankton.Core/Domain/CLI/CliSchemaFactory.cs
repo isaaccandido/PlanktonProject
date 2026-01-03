@@ -1,8 +1,7 @@
-﻿using Plankton.Core.Domain.Models;
+﻿using Microsoft.Extensions.Configuration;
+using Plankton.Core.Domain.Models;
 
-namespace Plankton.Core.Domain.CLI.Utils;
-
-using Microsoft.Extensions.Configuration;
+namespace Plankton.Core.Domain.CLI;
 
 public sealed class CliSchemaFactory(IConfiguration config)
 {

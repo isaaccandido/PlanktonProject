@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
-using Plankton.Core.Domain.CLI.Utils;
+using Plankton.Core.Domain.CLI;
 using Plankton.Core.Domain.Models;
 
 namespace Plankton.Core.Services;
