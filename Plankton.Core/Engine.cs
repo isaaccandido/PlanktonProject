@@ -89,9 +89,7 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
     [LoggerMessage(LogLevel.Information, "Registering command source {source}")]
     static partial void LogRegisteringCommandSourceSource(ILogger<Engine> logger, string source);
 
-    [LoggerMessage(
-        LogLevel.Information,
-        "Registered {sourceCount} command source(s): {sources}")]
+    [LoggerMessage(LogLevel.Information, "Registered {sourceCount} command source(s): {sources}")]
     static partial void LogRegisteredSourceCountCommandSourceSSources(
         ILogger<Engine> logger,
         int sourceCount,

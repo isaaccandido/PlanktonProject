@@ -11,6 +11,7 @@ using Plankton.Core.Interfaces;
 using Plankton.Core.Services;
 using Serilog;
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
 using Plankton.Core.Domain.Startup;
 
 namespace Plankton.Core;
@@ -23,10 +24,7 @@ public sealed class Startup
     {
     }
 
-    public static Startup GetInstance()
-    {
-        return Instance.Value;
-    }
+    public static Startup GetInstance() => Instance.Value;
 
     public async Task Boot(string[] args)
     {
@@ -38,13 +36,11 @@ public sealed class Startup
         var help = host.Services.GetRequiredService<CliHelpPrinterService>();
         var banner = host.Services.GetRequiredService<BannerProcessor>();
         var engine = host.Services.GetRequiredService<Engine>();
-        var httpCommandSource = host.Services.GetRequiredService<HttpCommandSource>();
 
         logger.LogInformation("Initializing application...");
         banner.PrintBanner();
 
         var result = parser.Parse(args, schema);
-
         if (result.HasHelp)
         {
             help.Print(schema);
@@ -55,7 +51,13 @@ public sealed class Startup
         logger.LogInformation("Running engine...");
 
         engine.CliArgs = result;
-        engine.RegisterCommandSource(httpCommandSource);
+
+        // Dynamically register enabled command sources
+        var commandSources = host.Services.GetServices<ICommandSource>();
+        foreach (var source in commandSources)
+        {
+            engine.RegisterCommandSource(source);
+        }
 
         await engine.RunAsync();
     }
@@ -68,11 +70,11 @@ public sealed class Startup
                 cfg.ReadFrom.Configuration(ctx.Configuration)
                     .ReadFrom.Services(services);
             })
-            .ConfigureServices((ctx, services) => AddServices(services))
+            .ConfigureServices((ctx, services) => { AddServices(services, ctx.Configuration); })
             .Build();
     }
 
-    private static void AddServices(IServiceCollection services)
+    private static void AddServices(IServiceCollection services, IConfiguration configuration)
     {
         // ─── CLI ───────────────────────────────────────────────
         services.AddSingleton<CliParserService>();
@@ -85,8 +87,36 @@ public sealed class Startup
         services.AddSingleton<Engine>();
         services.AddSingleton<Func<Engine>>(sp => sp.GetRequiredService<Engine>);
 
-        // ─── Command Sources ───────────────────────────────────
-        services.AddSingleton<HttpCommandSource>();
+        // ─── Command Source Settings ───────────────────────────
+        var commandSourceSettings = configuration.GetSection("commandSources")
+            .Get<CommandSourceSettings>() ?? new CommandSourceSettings();
+
+        // Fail if no source is enabled
+        if (!commandSourceSettings.HttpEnabled && !commandSourceSettings.TelegramEnabled)
+        {
+            throw new InvalidOperationException("At least one command source must be enabled (HTTP or Telegram).");
+        }
+
+        // ─── Dynamically register enabled command sources ───────
+        var allSourceTypes = Assembly.GetExecutingAssembly()
+            .GetTypes()
+            .Where(t => !t.IsAbstract && typeof(ICommandSource).IsAssignableFrom(t));
+
+        foreach (var type in allSourceTypes)
+        {
+            var enabled =
+                type == typeof(HttpCommandSource) && commandSourceSettings.HttpEnabled ||
+                type == typeof(TelegramCommandSource) && commandSourceSettings.TelegramEnabled;
+
+            if (enabled)
+            {
+                // Register concrete type
+                services.AddSingleton(type);
+
+                // Register as ICommandSource (same instance)
+                services.AddSingleton(typeof(ICommandSource), sp => sp.GetRequiredService(type));
+            }
+        }
 
         // ─── Command Pipeline ──────────────────────────────────
         services.AddSingleton<ICommandValidator, BasicCommandValidator>();
@@ -96,14 +126,13 @@ public sealed class Startup
         // ─── Command Handlers ──────────────────────────────────
         services.AddSingleton<ShutdownCommandHandler>();
         services.AddSingleton<ICommandHandler>(sp => sp.GetRequiredService<ShutdownCommandHandler>());
-
         AddCommandHandlers(services);
 
         // ─── Resolver & Bus ────────────────────────────────────
         services.AddSingleton<ICommandHandlerResolver, CommandHandlerResolver>();
         services.AddSingleton<CommandBus>();
     }
-
+    
     private static void AddCommandHandlers(IServiceCollection services)
     {
         var handlerTypes = Assembly.GetExecutingAssembly()

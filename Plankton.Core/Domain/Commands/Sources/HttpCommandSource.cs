@@ -87,8 +87,7 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
 
         _app.MapPost(CommandEndpoint, async (HttpContext context, CommandRequestModel request) =>
         {
-            if (CommandReceived is null)
-                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            if (CommandReceived is null) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
 
             var correlationId = context.Request.Headers.TryGetValue(XCorrelationId, out var cid)
                 ? cid.ToString()
