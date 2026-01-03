@@ -12,7 +12,7 @@ public sealed partial class ListBotsCommandHandler(ILogger<ListBotsCommandHandle
     public string[]? FixedArgs => [];
 
     // For demo purposes, we'll just return a fixed list of bot names.
-    // You can replace this with your real bot manager/service.
+    // TODO make this real
     public Task<object?> HandleAsync(CommandModel command)
     {
         LogListingBots(logger, command.Source);
@@ -24,7 +24,6 @@ public sealed partial class ListBotsCommandHandler(ILogger<ListBotsCommandHandle
             "GammaBot"
         };
 
-        // Return the list as object
         return Task.FromResult<object?>(bots);
     }
 

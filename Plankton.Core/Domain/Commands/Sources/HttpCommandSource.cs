@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Plankton.Core.Domain.Commands.Infrastructure;
@@ -11,13 +12,15 @@ using Plankton.Core.Interfaces;
 
 namespace Plankton.Core.Domain.Commands.Sources;
 
-public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger) : ICommandSource
+public sealed partial class HttpCommandSource(
+    ILogger<HttpCommandSource> logger, 
+    IConfiguration configuration) : ICommandSource
 {
     private const string XCorrelationId = "X-Correlation-Id";
     private const string Authorization = "Authorization";
     private const string BearerPrefix = "Bearer ";
     private const string CommandEndpoint = "/command";
-    private const string BaseAddress = "https://isaaccandido.com/plankton"; // TODO: make configurable
+    private readonly string _baseAddress = configuration["application:baseAddress"] ?? string.Empty;
 
     public event Func<CommandContext, Task<object?>>? CommandReceived;
 
@@ -58,7 +61,7 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
                             context,
                             StatusCodes.Status400BadRequest,
                             "Invalid command",
-                            $"{BaseAddress}/problems/invalid-command",
+                            $"{_baseAddress}/problems/invalid-command",
                             ice.Message,
                             context.Request.Path,
                             ice.AllowedArgs
@@ -70,7 +73,7 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
                             context,
                             StatusCodes.Status401Unauthorized,
                             "Unauthorized",
-                            $"{BaseAddress}/problems/unauthorized",
+                            $"{_baseAddress}/problems/unauthorized",
                             de.Message,
                             context.Request.Path
                         );
@@ -81,7 +84,7 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
                             context,
                             StatusCodes.Status429TooManyRequests,
                             "Rate limit exceeded",
-                            $"{BaseAddress}/problems/rate-limit-exceeded",
+                            $"{_baseAddress}/problems/rate-limit-exceeded",
                             de.Message,
                             context.Request.Path
                         );
@@ -92,7 +95,7 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
                             context,
                             StatusCodes.Status400BadRequest,
                             "Domain error",
-                            $"{BaseAddress}/problems/domain-error",
+                            $"{_baseAddress}/problems/domain-error",
                             de.Message,
                             context.Request.Path
                         );
@@ -113,7 +116,7 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
                     context,
                     StatusCodes.Status500InternalServerError,
                     "Internal server error",
-                    $"{BaseAddress}/problems/internal-error",
+                    $"{_baseAddress}/problems/internal-error",
                     ex.Message,
                     context.Request.Path
                 );

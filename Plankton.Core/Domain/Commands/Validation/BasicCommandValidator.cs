@@ -15,29 +15,28 @@ public sealed class BasicCommandValidator(ICommandHandlerResolver resolver) : IC
         var handler = _resolver.Resolve(command.Name);
 
         var minArgs = handler.MinArgs;
-
-        if (handler.FixedArgs == null) return Task.CompletedTask;
-
-        var fixedArgs = handler.FixedArgs.Where(arg => !string.IsNullOrWhiteSpace(arg)).ToArray();
+        var fixedArgs = handler.FixedArgs?.Where(arg => !string.IsNullOrWhiteSpace(arg)).ToArray();
 
         if ((command.Args?.Count ?? 0) < minArgs)
         {
-            var message = $"Command '{command.Name}' requires at least {minArgs} argument(s)." +
-                          $"{(fixedArgs.Length != 0 ? $" Allowed: [{string.Join(", ", fixedArgs)}]" : string.Empty)}";
+            var message = $"Command '{command.Name}' requires at least {minArgs} argument(s).";
+            if (fixedArgs?.Length > 0) message += $" Allowed: [{string.Join(", ", fixedArgs)}]";
 
-            throw new InvalidCommandException(message);
+            throw new InvalidCommandException(message, fixedArgs);
         }
+
+        if (!(fixedArgs?.Length > 0)) return Task.CompletedTask;
 
         var invalidArg = command.Args?.FirstOrDefault(arg =>
         {
             return !fixedArgs.Any(f => string.Equals(f, arg, StringComparison.OrdinalIgnoreCase));
         });
 
-        if (invalidArg != null)
-            throw new InvalidCommandException(
-                $"Invalid argument '{invalidArg}' for command '{command.Name}'. " +
-                $"Allowed: {string.Join(", ", fixedArgs)}");
-
-        return Task.CompletedTask;
+        if (invalidArg == null) return Task.CompletedTask;
+        
+        throw new InvalidCommandException(
+            $"Invalid argument '{invalidArg}' for command '{command.Name}'. " +
+            $"Allowed: {string.Join(", ", fixedArgs)}",
+            fixedArgs);
     }
 }

@@ -87,8 +87,10 @@ public sealed class Startup
         var commandSourceSettings = configuration.GetSection("commandSources")
             .Get<CommandSourceSettingsModel>() ?? new CommandSourceSettingsModel();
 
-        if (commandSourceSettings is { HttpEnabled: false, TelegramEnabled: false })
+        if (commandSourceSettings is { Http.Enabled: false, Telegram.Enabled: false })
+        {
             throw new InvalidOperationException("At least one command source must be enabled (HTTP or Telegram).");
+        }
 
         var allSourceTypes = Assembly.GetExecutingAssembly()
             .GetTypes()
@@ -97,8 +99,8 @@ public sealed class Startup
         foreach (var type in allSourceTypes)
         {
             var enabled =
-                (type == typeof(HttpCommandSource) && commandSourceSettings.HttpEnabled) ||
-                (type == typeof(TelegramCommandSource) && commandSourceSettings.TelegramEnabled);
+                (type == typeof(HttpCommandSource) && commandSourceSettings.Http.Enabled) ||
+                (type == typeof(TelegramCommandSource) && commandSourceSettings.Telegram.Enabled);
 
             if (!enabled) continue;
 

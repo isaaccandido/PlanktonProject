@@ -19,7 +19,7 @@ public sealed class ListCommandsCommandHandler(IServiceProvider provider) : ICom
 
         return Task.FromResult<object?>(new Dictionary<string, object?>
         {
-            { "available-commands", commandList }
+            { "availableCommands", commandList }
         });
     }
 }

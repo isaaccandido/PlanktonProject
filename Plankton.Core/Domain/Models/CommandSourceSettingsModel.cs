@@ -2,6 +2,16 @@
 
 public sealed class CommandSourceSettingsModel
 {
-    public bool HttpEnabled { get; init; } = true;
-    public bool TelegramEnabled { get; init; } = true;
+    public Http Http { get; init; } = new();
+    public Telegram Telegram { get; init; } = new();
+}
+
+public sealed class Http
+{
+    public bool Enabled { get; init; } = true;
+}
+
+public sealed class Telegram
+{
+    public bool Enabled { get; init; } = true;
 }
