@@ -17,7 +17,7 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
     private const string Authorization = "Authorization";
     private const string BearerPrefix = "Bearer ";
     private const string CommandEndpoint = "/command";
-    private const string BaseAddress = "https://isaaccandido.com/plankton"; // TODO this should be a config
+    private const string BaseAddress = "https://isaaccandido.com/plankton"; // TODO: make configurable
 
     public event Func<CommandContext, Task<object?>>? CommandReceived;
 
@@ -42,6 +42,63 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
             {
                 // ignore shutdown cancellations
             }
+            catch (DomainException de)
+            {
+                var correlationId = context.Response.Headers.ContainsKey(XCorrelationId)
+                    ? context.Response.Headers[XCorrelationId].ToString()
+                    : Guid.NewGuid().ToString("N");
+
+                context.Response.Headers[XCorrelationId] = correlationId;
+
+                switch (de)
+                {
+                    case InvalidCommandException ice:
+                        LogInvalidCommand(logger, correlationId, ice.Message);
+                        await HandleProblemAsync(
+                            context,
+                            StatusCodes.Status400BadRequest,
+                            "Invalid command",
+                            $"{BaseAddress}/problems/invalid-command",
+                            ice.Message,
+                            context.Request.Path,
+                            ice.AllowedArgs
+                        );
+                        break;
+
+                    case UnauthorizedCommandException _:
+                        await HandleProblemAsync(
+                            context,
+                            StatusCodes.Status401Unauthorized,
+                            "Unauthorized",
+                            $"{BaseAddress}/problems/unauthorized",
+                            de.Message,
+                            context.Request.Path
+                        );
+                        break;
+
+                    case RateLimitExceededException _:
+                        await HandleProblemAsync(
+                            context,
+                            StatusCodes.Status429TooManyRequests,
+                            "Rate limit exceeded",
+                            $"{BaseAddress}/problems/rate-limit-exceeded",
+                            de.Message,
+                            context.Request.Path
+                        );
+                        break;
+
+                    default:
+                        await HandleProblemAsync(
+                            context,
+                            StatusCodes.Status400BadRequest,
+                            "Domain error",
+                            $"{BaseAddress}/problems/domain-error",
+                            de.Message,
+                            context.Request.Path
+                        );
+                        break;
+                }
+            }
             catch (Exception ex)
             {
                 var correlationId = context.Response.Headers.ContainsKey(XCorrelationId)
@@ -52,42 +109,21 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
 
                 LogUnhandledExceptionCorrelationId(logger, correlationId);
 
-                var problem = ex switch
-                {
-                    UnauthorizedAccessException => new ProblemDetails
-                    {
-                        Status = StatusCodes.Status401Unauthorized,
-                        Title = "Unauthorized",
-                        Type = $"{BaseAddress}/problems/unauthorized",
-                        Instance = context.Request.Path
-                    },
-                    InvalidCommandException ice => new ProblemDetails
-                    {
-                        Status = StatusCodes.Status400BadRequest,
-                        Title = "Invalid command",
-                        Type = $"{BaseAddress}/problems/invalid-command",
-                        Detail = ice.Message,
-                        Instance = context.Request.Path
-                    },
-                    _ => new ProblemDetails
-                    {
-                        Status = StatusCodes.Status500InternalServerError,
-                        Title = "Internal server error",
-                        Type = $"{BaseAddress}/problems/internal-error",
-                        Detail = ex.Message,
-                        Instance = context.Request.Path
-                    }
-                };
-
-                context.Response.ContentType = "application/problem+json";
-                context.Response.StatusCode = problem.Status ?? StatusCodes.Status500InternalServerError;
-                await context.Response.WriteAsJsonAsync(problem, cancellationToken);
+                await HandleProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "Internal server error",
+                    $"{BaseAddress}/problems/internal-error",
+                    ex.Message,
+                    context.Request.Path
+                );
             }
         });
 
         _app.MapPost(CommandEndpoint, async (HttpContext context, CommandRequestModel request) =>
         {
-            if (CommandReceived is null) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            if (CommandReceived is null)
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
 
             var correlationId = context.Request.Headers.TryGetValue(XCorrelationId, out var cid)
                 ? cid.ToString()
@@ -138,11 +174,47 @@ public sealed partial class HttpCommandSource(ILogger<HttpCommandSource> logger)
         });
     }
 
-    [LoggerMessage(LogLevel.Information, "Starting HttpCommandSource...")]
-    static partial void LogStartingCommandSource(ILogger<HttpCommandSource> logger);
+    private static async Task HandleProblemAsync(
+        HttpContext context,
+        int statusCode,
+        string title,
+        string type,
+        string? detail,
+        string instance,
+        string[]? allowedArgs = null)
+    {
+        var correlationId = context.Response.Headers.ContainsKey(XCorrelationId)
+            ? context.Response.Headers[XCorrelationId].ToString()
+            : Guid.NewGuid().ToString("N");
+
+        context.Response.Headers[XCorrelationId] = correlationId;
+
+        var finalDetail = detail;
+        if (allowedArgs is { Length: > 0 }) finalDetail += $" Allowed arguments: {string.Join(", ", allowedArgs)}";
+
+        var problem = new ProblemDetails
+        {
+            Status = statusCode,
+            Title = title,
+            Type = type,
+            Detail = finalDetail,
+            Instance = instance
+        };
+
+        context.Response.ContentType = "application/problem+json";
+        context.Response.StatusCode = statusCode;
+
+        await context.Response.WriteAsJsonAsync(problem);
+    }
+
+    [LoggerMessage(LogLevel.Error, "Invalid command (CorrelationId: {correlationId}): {message}")]
+    static partial void LogInvalidCommand(ILogger<HttpCommandSource> logger, string correlationId, string message);
 
     [LoggerMessage(LogLevel.Error, "Unhandled exception (CorrelationId: {correlationId})")]
     static partial void LogUnhandledExceptionCorrelationId(ILogger<HttpCommandSource> logger, string correlationId);
+
+    [LoggerMessage(LogLevel.Information, "Starting HttpCommandSource...")]
+    static partial void LogStartingCommandSource(ILogger<HttpCommandSource> logger);
 
     [LoggerMessage(LogLevel.Error, "Error stopping HttpCommandSource")]
     static partial void LogErrorStoppingHttpCommandSource(ILogger<HttpCommandSource> logger);

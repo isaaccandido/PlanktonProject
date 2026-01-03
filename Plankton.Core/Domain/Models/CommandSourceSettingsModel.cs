@@ -1,6 +1,6 @@
-﻿namespace Plankton.Core.Domain.Startup;
+﻿namespace Plankton.Core.Domain.Models;
 
-public sealed class CommandSourceSettings
+public sealed class CommandSourceSettingsModel
 {
     public bool HttpEnabled { get; init; } = true;
     public bool TelegramEnabled { get; init; } = true;

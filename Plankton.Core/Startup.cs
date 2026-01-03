@@ -11,6 +11,7 @@ using Plankton.Core.Interfaces;
 using Plankton.Core.Services;
 using Serilog;
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Plankton.Core.Domain.Startup;
 
@@ -75,20 +76,16 @@ public sealed class Startup
 
     private static void AddServices(IServiceCollection services, IConfiguration configuration)
     {
-        // ─── CLI ───────────────────────────────────────────────
         services.AddSingleton<CliParserService>();
         services.AddSingleton<CliHelpPrinterService>();
         services.AddSingleton<CliSchemaFactory>();
         services.AddSingleton<CliSchemaModel>(sp => sp.GetRequiredService<CliSchemaFactory>().Build());
         services.AddSingleton<BannerProcessor>();
-
-        // ─── Engine ────────────────────────────────────────────
         services.AddSingleton<Engine>();
         services.AddSingleton<Func<Engine>>(sp => sp.GetRequiredService<Engine>);
 
-        // ─── Command Source Settings ───────────────────────────
         var commandSourceSettings = configuration.GetSection("commandSources")
-            .Get<CommandSourceSettings>() ?? new CommandSourceSettings();
+            .Get<CommandSourceSettingsModel>() ?? new CommandSourceSettingsModel();
 
         if (commandSourceSettings is { HttpEnabled: false, TelegramEnabled: false })
             throw new InvalidOperationException("At least one command source must be enabled (HTTP or Telegram).");
@@ -109,19 +106,16 @@ public sealed class Startup
             services.AddSingleton(typeof(ICommandSource), sp => sp.GetRequiredService(type));
         }
 
-        // ─── Command Pipeline ──────────────────────────────────
         services.AddSingleton<ICommandValidator, BasicCommandValidator>();
         services.AddSingleton<ICommandAuthorizer>(_ => new TokenCommandAuthorizer(GetSuiteToken()));
         services.AddSingleton<CommandRateLimiter>();
+        services.AddSingleton<ICommandHandlerResolver, CommandHandlerResolver>();
+        services.AddSingleton<CommandBus>();
 
         // ─── Command Handlers ──────────────────────────────────
         services.AddSingleton<ShutdownCommandHandler>();
         services.AddSingleton<ICommandHandler>(sp => sp.GetRequiredService<ShutdownCommandHandler>());
         AddCommandHandlers(services);
-
-        // ─── Resolver & Bus ────────────────────────────────────
-        services.AddSingleton<ICommandHandlerResolver, CommandHandlerResolver>();
-        services.AddSingleton<CommandBus>();
     }
 
     private static void AddCommandHandlers(IServiceCollection services)

@@ -15,16 +15,6 @@ public class TelegramCommandSource(ILogger<HttpCommandSource> logger) : ICommand
 
         logger.LogWarning("Telegram is still in development...");
 
-        CommandReceived?.Invoke(new CommandContext
-        {
-            Command = new CommandModel
-            {
-                Name = "Telegram",
-                Args = []
-            },
-            CorrelationId = Guid.NewGuid().ToString()
-        });
-
         return Task.CompletedTask;
     }
 }

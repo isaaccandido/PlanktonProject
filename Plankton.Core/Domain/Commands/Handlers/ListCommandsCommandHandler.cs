@@ -7,7 +7,7 @@ namespace Plankton.Core.Domain.Commands.Handlers;
 public sealed class ListCommandsCommandHandler(IServiceProvider provider) : ICommandHandler
 {
     public string CommandName => "list-commands";
-    public int MinArgs => 1;
+    public int MinArgs => 0;
     public string[]? FixedArgs => [];
 
     public Task<object?> HandleAsync(CommandModel command)

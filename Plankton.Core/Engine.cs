@@ -1,6 +1,8 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Plankton.Core.Domain.Commands.Infrastructure;
 using Plankton.Core.Domain.Models;
+using Plankton.Core.Enums;
 using Plankton.Core.Interfaces;
 
 namespace Plankton.Core;
@@ -11,6 +13,7 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
 
     private readonly List<ICommandSource> _commandSources = [];
     private readonly CancellationTokenSource _cts = new();
+    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
     public void RegisterCommandSource(ICommandSource source)
     {
@@ -62,14 +65,18 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
             context.CorrelationId
         );
 
-        LogReceivedCommandCommand(logger, context.Command.Name);
+        LogReceivedCommandCommand(logger, context.Command.Name, context.Command.Source);
 
-        return await commandBus.DispatchAsync(context);
+        var response = await commandBus.DispatchAsync(context);
+
+        LogResponseResponse(logger, JsonSerializer.Serialize(response, _jsonOptions));
+
+        return response;
     }
 
     public async Task ShutdownAsync()
     {
-        logger.LogInformation("Shutdown requested");
+        LogShutdownRequested(logger);
 
         foreach (var source in _commandSources) source.CommandReceived -= HandleCommandAsync;
 
@@ -83,8 +90,8 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
     [LoggerMessage(LogLevel.Information, "Engine stopped.")]
     static partial void LogEngineStopped(ILogger<Engine> logger);
 
-    [LoggerMessage(LogLevel.Information, "Received command: {command}")]
-    static partial void LogReceivedCommandCommand(ILogger<Engine> logger, string command);
+    [LoggerMessage(LogLevel.Information, "Received command: {command} via {source}")]
+    static partial void LogReceivedCommandCommand(ILogger<Engine> logger, string command, SourceType? source);
 
     [LoggerMessage(LogLevel.Information, "Registering command source {source}")]
     static partial void LogRegisteringCommandSourceSource(ILogger<Engine> logger, string source);
@@ -95,6 +102,12 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
         int sourceCount,
         IEnumerable<string> sources);
 
-    [LoggerMessage(LogLevel.Information, "Starting command source {source}")]
+    [LoggerMessage(LogLevel.Information, "Starting command source '{source}'")]
     static partial void LogStartingCommandSourceSource(ILogger<Engine> logger, string source);
+
+    [LoggerMessage(LogLevel.Information, "Response: {response}")]
+    static partial void LogResponseResponse(ILogger<Engine> logger, string response);
+
+    [LoggerMessage(LogLevel.Information, "Shutdown requested")]
+    static partial void LogShutdownRequested(ILogger<Engine> logger);
 }

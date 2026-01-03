@@ -14,21 +14,21 @@ public sealed class BasicCommandValidator(ICommandHandlerResolver resolver) : IC
 
         var handler = _resolver.Resolve(command.Name);
 
-        var minArgs = handler.GetType().GetProperty("MinArgs")?.GetValue(handler) as int? ?? 0;
+        var minArgs = handler.MinArgs;
+
+        if (handler.FixedArgs == null) return Task.CompletedTask;
+
+        var fixedArgs = handler.FixedArgs.Where(arg => !string.IsNullOrWhiteSpace(arg)).ToArray();
 
         if ((command.Args?.Count ?? 0) < minArgs)
         {
-            var allowedMsg = GetFixedArgsMessage(handler);
-            throw new InvalidCommandException(
-                $"Command '{command.Name}' requires at least {minArgs} argument(s). {allowedMsg}".Trim()
-            );
+            var message = $"Command '{command.Name}' requires at least {minArgs} argument(s)." +
+                          $"{(fixedArgs.Length != 0 ? $" Allowed: [{string.Join(", ", fixedArgs)}]" : string.Empty)}";
+
+            throw new InvalidCommandException(message);
         }
 
-        if (handler.GetType().GetProperty("FixedArgs")?.GetValue(handler)
-                is not string[] { Length: > 0 } fixedArgs || command.Args == null)
-            return Task.CompletedTask;
-
-        var invalidArg = command.Args.FirstOrDefault(arg =>
+        var invalidArg = command.Args?.FirstOrDefault(arg =>
         {
             return !fixedArgs.Any(f => string.Equals(f, arg, StringComparison.OrdinalIgnoreCase));
         });
@@ -36,19 +36,8 @@ public sealed class BasicCommandValidator(ICommandHandlerResolver resolver) : IC
         if (invalidArg != null)
             throw new InvalidCommandException(
                 $"Invalid argument '{invalidArg}' for command '{command.Name}'. " +
-                $"Allowed arguments: {string.Join(", ", fixedArgs)}"
-            );
+                $"Allowed: {string.Join(", ", fixedArgs)}");
 
         return Task.CompletedTask;
-    }
-
-
-    private static string GetFixedArgsMessage(ICommandHandler handler)
-    {
-        if (handler.GetType().GetProperty("FixedArgs")?.GetValue(handler) is string[] fixedArgs &&
-            fixedArgs.Length > 0)
-            return $"Allowed arguments: [{string.Join(", ", fixedArgs)}].";
-
-        return string.Empty;
     }
 }
