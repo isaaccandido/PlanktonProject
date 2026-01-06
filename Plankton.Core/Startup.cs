@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Plankton.Core.Domain.CLI;
-using Plankton.Core.Domain.Commands.Handlers;
 using Plankton.Core.Domain.Commands.Infrastructure;
 using Plankton.Core.Domain.Commands.Sources;
 using Plankton.Core.Domain.Commands.Validation;
@@ -11,12 +10,12 @@ using Plankton.Core.Interfaces;
 using Plankton.Core.Services;
 using Serilog;
 using System.Reflection;
-using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Plankton.Bots;
 using Plankton.Bots.Utils;
+using Plankton.Core.Domain.Commands.Handlers;
 using Plankton.Core.Domain.Startup;
-using ShutdownSuiteCommandHandler = Plankton.Core.Domain.Commands.Handlers.ShutdownSuiteCommandHandler;
+using Plankton.Core.Enums;
 
 namespace Plankton.Core;
 
@@ -60,7 +59,14 @@ public sealed class Startup
         engine.CliArgs = result;
 
         var commandSources = host.Services.GetServices<ICommandSource>();
-        foreach (var source in commandSources) engine.RegisterCommandSource(source);
+
+
+        foreach (var source in commandSources)
+        {
+            if (source is TelegramCommandSource s) s.Token = GetTelegramBotTokenFromEnvironment();
+
+            engine.RegisterCommandSource(source);
+        }
 
         await engine.RunAsync();
     }
@@ -112,7 +118,7 @@ public sealed class Startup
         }
 
         services.AddSingleton<ICommandValidator, BasicCommandValidator>();
-        services.AddSingleton<ICommandAuthorizer>(_ => new TokenCommandAuthorizer(GetSuiteToken()));
+        services.AddSingleton<ICommandAuthorizer>(_ => new TokenCommandAuthorizer(GetSuiteTokens()));
         services.AddSingleton<CommandRateLimiter>();
         services.AddSingleton<ICommandHandlerResolver, CommandHandlerResolver>();
         services.AddSingleton<CommandBus>();
@@ -140,15 +146,31 @@ public sealed class Startup
         }
     }
 
-    private static string GetSuiteToken()
+    private static Dictionary<SourceType, string> GetSuiteTokens()
     {
-        return Environment.GetEnvironmentVariable("PLANKTON_ADMIN_TOKEN")
-               ?? throw new InvalidOperationException("Environment variable BOT_ADMIN_TOKEN is not defined.");
+        var httpId = Environment.GetEnvironmentVariable("PLANKTON_HTTP_ID")
+                     ?? throw new InvalidOperationException("Environment variable BOT_ADMIN_TOKEN is not defined.");
+
+        var telegramId = Environment.GetEnvironmentVariable("PLANKTON_TELEGRAM_ID")
+                         ?? throw new InvalidOperationException(
+                             "Environment variable PLANKTON_TELEGRAM_TOKEN is not defined.");
+
+        return new Dictionary<SourceType, string>
+        {
+            { SourceType.Http, httpId },
+            { SourceType.Telegram, telegramId }
+        };
     }
 
     private static string GetBaseAddressFromEnvironment()
     {
         return Environment.GetEnvironmentVariable("PLANKTON_BASE_ADDRESS")
                ?? throw new InvalidOperationException("Environment variable PLANKTON_BASE_ADDRESS is not defined.");
+    }
+
+    private static string GetTelegramBotTokenFromEnvironment()
+    {
+        return Environment.GetEnvironmentVariable("PLANKTON_TELEGRAM_TOKEN")
+               ?? throw new InvalidOperationException("Environment variable PLANKTON_TELEGRAM_TOKEN is not defined.");
     }
 }

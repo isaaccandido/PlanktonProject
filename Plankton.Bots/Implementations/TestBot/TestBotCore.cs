@@ -21,14 +21,14 @@ public class TestBotCore(ILogger<TestBotCore> logger, BotWebTools botWebTools) :
     public Task RunAsync(CancellationToken ct)
     {
         var result = botWebTools.SendAsync<Dictionary<string, object>>(
-            method: HttpMethod.Get,
-            botId: Name,
-            url: "https://api.adviceslip.com/advice",
-            body: null,
-            ct: ct
+            HttpMethod.Get,
+            Name,
+            "https://api.adviceslip.com/advice",
+            null,
+            ct
         ).Result;
 
-        logger.LogInformation(message: JsonSerializer.Serialize(result));
+        logger.LogInformation(JsonSerializer.Serialize(result));
 
         return Task.CompletedTask;
     }

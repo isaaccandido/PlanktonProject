@@ -53,7 +53,7 @@ public sealed class BotWebTools(
         var response = await policy.ExecuteAsync(token => _httpClient.SendAsync(request, token), ct);
 
         sw.Stop();
-        
+
         logger.LogInformation(
             "[{BotId}] Received {StatusCode} from {Url} in {ElapsedMs}ms",
             botId, response.StatusCode, targetUrl, sw.ElapsedMilliseconds);
@@ -87,17 +87,17 @@ public sealed class BotWebTools(
             BearerToken = botSettings.BearerToken ?? _settings.Default.BearerToken,
             BasicAuth = botSettings.BasicAuth ?? _settings.Default.BasicAuth,
             CustomHeaders = botSettings.CustomHeaders ?? _settings.Default.CustomHeaders,
-            RetryCount = botSettings.RetryCount != 0 
-                ? botSettings.RetryCount 
+            RetryCount = botSettings.RetryCount != 0
+                ? botSettings.RetryCount
                 : _settings.Default.RetryCount,
-            RetryDelaySeconds = botSettings.RetryDelaySeconds != 0 
-                ? botSettings.RetryDelaySeconds 
+            RetryDelaySeconds = botSettings.RetryDelaySeconds != 0
+                ? botSettings.RetryDelaySeconds
                 : _settings.Default.RetryDelaySeconds,
-            CircuitBreakerFailures = botSettings.CircuitBreakerFailures != 0 
-                ? botSettings.CircuitBreakerFailures 
+            CircuitBreakerFailures = botSettings.CircuitBreakerFailures != 0
+                ? botSettings.CircuitBreakerFailures
                 : _settings.Default.CircuitBreakerFailures,
-            CircuitBreakerDurationSeconds = botSettings.CircuitBreakerDurationSeconds != 0 
-                ? botSettings.CircuitBreakerDurationSeconds 
+            CircuitBreakerDurationSeconds = botSettings.CircuitBreakerDurationSeconds != 0
+                ? botSettings.CircuitBreakerDurationSeconds
                 : _settings.Default.CircuitBreakerDurationSeconds
         };
     }
@@ -111,7 +111,8 @@ public sealed class BotWebTools(
                 settings.RetryCount,
                 _ => TimeSpan.FromSeconds(settings.RetryDelaySeconds),
                 (resp, _, retryCount, _) =>
-                    logger.LogWarning("[{Key}] Retry {RetryCount} due to {Reason}", key, retryCount, resp.Exception?.Message ?? resp.Result?.StatusCode.ToString())
+                    logger.LogWarning("[{Key}] Retry {RetryCount} due to {Reason}", key, retryCount,
+                        resp.Exception?.Message ?? resp.Result?.StatusCode.ToString())
             );
 
         var circuitBreaker = Policy<HttpResponseMessage>
@@ -138,12 +139,13 @@ public sealed class BotWebTools(
 
         if (settings.BasicAuth is { UserName: not null, Password: not null })
         {
-            var value = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{settings.BasicAuth.UserName}:{settings.BasicAuth.Password}"));
+            var value = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes($"{settings.BasicAuth.UserName}:{settings.BasicAuth.Password}"));
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", value);
         }
 
         if (settings.CustomHeaders is null) return;
-        
+
         foreach (var kv in settings.CustomHeaders)
         {
             request.Headers.Remove(kv.Key);
