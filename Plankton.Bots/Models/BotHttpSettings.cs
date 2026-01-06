@@ -4,6 +4,7 @@ namespace Plankton.Bots.Models;
 
 public class BotHttpSettings
 {
+    public string? BaseUrl { get; set; }
     public string? BearerToken { get; init; }
     public NetworkCredential? BasicAuth { get; init; }
     public Dictionary<string, string>? CustomHeaders { get; init; }

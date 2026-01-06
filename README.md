@@ -180,6 +180,7 @@ botWebTools.ResetIdempotencyToken("TestBot");
 ```json
 "BotsHttpSettings": {
   "Default": {
+	"BaseUrl": "http://test.com",
     "BearerToken": "",
     "BasicAuth": { "UserName": "defaultUser", "Password": "defaultPass" },
     "RetryCount": 3,

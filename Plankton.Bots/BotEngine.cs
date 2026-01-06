@@ -218,7 +218,7 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
     public BotActionResultModel RestartBot(string botName)
     {
         logger.LogInformation("Bot {BotName} restarting bot", botName);
-
+        
         var stopResult = StopBot(botName);
 
         if (!stopResult.Success) return stopResult;

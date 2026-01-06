@@ -9,62 +9,67 @@ using Plankton.Bots.Models;
 
 namespace Plankton.Bots.Utils;
 
-public sealed class BotWebTools(ILogger<BotWebTools> logger, IOptions<BotsHttpSettings> options)
+public sealed class BotWebTools(
+    ILogger<BotWebTools> logger,
+    IOptions<BotsHttpSettings> options,
+    HttpClient? httpClient = null)
 {
-    private readonly HttpClient _httpClient = new();
     private readonly BotsHttpSettings _settings = options.Value;
-
+    private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
     private readonly ConcurrentDictionary<string, AsyncPolicy<HttpResponseMessage>> _policies = new();
     private readonly ConcurrentDictionary<string, string> _idempotencyTokens = new();
+    private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     public async Task<T?> SendAsync<T>(
-        string url,
         HttpMethod method,
         string botId,
+        string? url = null,
         object? body = null,
-        CancellationToken ct = default
-    )
+        CancellationToken ct = default)
     {
         var settings = GetSettingsForBot(botId);
-        var request = new HttpRequestMessage(method, url);
+
+        var targetUrl = url ?? settings.BaseUrl;
+        if (string.IsNullOrWhiteSpace(targetUrl))
+            throw new ArgumentException($"No URL provided for bot '{botId}'.");
+
+        using var request = new HttpRequestMessage(method, targetUrl);
 
         if (body is not null)
         {
-            var json = JsonSerializer.Serialize(body);
+            var json = JsonSerializer.Serialize(body, _jsonOptions);
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
         }
 
         ApplyHeaders(request, settings);
-        ApplyIdempotencyToken(request, botId);
+        ApplyIdempotencyToken(request, botId, targetUrl);
 
-        var host = request.RequestUri!.Host;
-        var policy = _policies.GetOrAdd(host, _ => CreatePolicy(host, settings));
+        var policyKey = $"{botId}:{new Uri(targetUrl).Host}";
+        var policy = _policies.GetOrAdd(policyKey, _ => CreatePolicy(policyKey, settings));
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        logger.LogInformation("[{BotId}] Sending {Method} request to {Url}", botId, method, url);
+        logger.LogInformation("[{BotId}] Sending {Method} request to {Url}", botId, method, targetUrl);
 
         var response = await policy.ExecuteAsync(token => _httpClient.SendAsync(request, token), ct);
 
         sw.Stop();
+        
         logger.LogInformation(
             "[{BotId}] Received {StatusCode} from {Url} in {ElapsedMs}ms",
-            botId,
-            response.StatusCode,
-            url,
-            sw.ElapsedMilliseconds
-        );
+            botId, response.StatusCode, targetUrl, sw.ElapsedMilliseconds);
 
         response.EnsureSuccessStatusCode();
 
         var responseJson = await response.Content.ReadAsStringAsync(ct);
         logger.LogDebug("[{BotId}] Response body: {Body}", botId, responseJson);
 
-        return JsonSerializer.Deserialize<T>(responseJson);
+        return JsonSerializer.Deserialize<T>(responseJson, _jsonOptions);
     }
 
-    public void ResetIdempotencyToken(string botId)
+    public void ResetIdempotencyToken(string botId, string? url = null)
     {
-        _idempotencyTokens.TryRemove(botId, out _);
+        var key = $"{botId}:{url}";
+        _idempotencyTokens.TryRemove(key, out _);
     }
 
     private BotHttpSettings GetSettingsForBot(string botId)
@@ -78,50 +83,46 @@ public sealed class BotWebTools(ILogger<BotWebTools> logger, IOptions<BotsHttpSe
     {
         return new BotHttpSettings
         {
+            BaseUrl = botSettings.BaseUrl ?? _settings.Default.BaseUrl,
             BearerToken = botSettings.BearerToken ?? _settings.Default.BearerToken,
             BasicAuth = botSettings.BasicAuth ?? _settings.Default.BasicAuth,
             CustomHeaders = botSettings.CustomHeaders ?? _settings.Default.CustomHeaders,
-            RetryCount = botSettings.RetryCount != 0
-                ? botSettings.RetryCount
+            RetryCount = botSettings.RetryCount != 0 
+                ? botSettings.RetryCount 
                 : _settings.Default.RetryCount,
-            RetryDelaySeconds = botSettings.RetryDelaySeconds != 0
-                ? botSettings.RetryDelaySeconds
+            RetryDelaySeconds = botSettings.RetryDelaySeconds != 0 
+                ? botSettings.RetryDelaySeconds 
                 : _settings.Default.RetryDelaySeconds,
-            CircuitBreakerFailures = botSettings.CircuitBreakerFailures != 0
-                ? botSettings.CircuitBreakerFailures
+            CircuitBreakerFailures = botSettings.CircuitBreakerFailures != 0 
+                ? botSettings.CircuitBreakerFailures 
                 : _settings.Default.CircuitBreakerFailures,
-            CircuitBreakerDurationSeconds = botSettings.CircuitBreakerDurationSeconds != 0
-                ? botSettings.CircuitBreakerDurationSeconds
+            CircuitBreakerDurationSeconds = botSettings.CircuitBreakerDurationSeconds != 0 
+                ? botSettings.CircuitBreakerDurationSeconds 
                 : _settings.Default.CircuitBreakerDurationSeconds
         };
     }
 
-    private AsyncPolicy<HttpResponseMessage> CreatePolicy(string host, BotHttpSettings settings)
+    private AsyncPolicy<HttpResponseMessage> CreatePolicy(string key, BotHttpSettings settings)
     {
-        var retryPolicy = Policy
+        var retryPolicy = Policy<HttpResponseMessage>
             .Handle<HttpRequestException>()
-            .OrResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
+            .OrResult(r => !r.IsSuccessStatusCode)
             .WaitAndRetryAsync(
                 settings.RetryCount,
                 _ => TimeSpan.FromSeconds(settings.RetryDelaySeconds),
                 (resp, _, retryCount, _) =>
-                    logger.LogWarning(
-                        "[{Host}] Retry {RetryCount} due to {Reason}",
-                        host,
-                        retryCount,
-                        resp.Exception?.Message ?? resp.Result?.StatusCode.ToString()
-                    )
+                    logger.LogWarning("[{Key}] Retry {RetryCount} due to {Reason}", key, retryCount, resp.Exception?.Message ?? resp.Result?.StatusCode.ToString())
             );
 
-        var circuitBreaker = Policy
+        var circuitBreaker = Policy<HttpResponseMessage>
             .Handle<HttpRequestException>()
-            .OrResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
+            .OrResult(r => !r.IsSuccessStatusCode)
             .CircuitBreakerAsync(
                 settings.CircuitBreakerFailures,
                 TimeSpan.FromSeconds(settings.CircuitBreakerDurationSeconds),
-                (_, _) => logger.LogWarning("[{Host}] Circuit breaker open", host),
-                () => logger.LogInformation("[{Host}] Circuit breaker reset", host),
-                () => logger.LogInformation("[{Host}] Circuit breaker half-open", host)
+                (_, _) => logger.LogWarning("[{Key}] Circuit breaker open", key),
+                () => logger.LogInformation("[{Key}] Circuit breaker reset", key),
+                () => logger.LogInformation("[{Key}] Circuit breaker half-open", key)
             );
 
         return Policy.WrapAsync(retryPolicy, circuitBreaker);
@@ -129,29 +130,34 @@ public sealed class BotWebTools(ILogger<BotWebTools> logger, IOptions<BotsHttpSe
 
     private void ApplyHeaders(HttpRequestMessage request, BotHttpSettings settings)
     {
+        if (!string.IsNullOrWhiteSpace(settings.BearerToken) && settings.BasicAuth is not null)
+            throw new InvalidOperationException("Cannot use both BearerToken and BasicAuth for the same bot request.");
+
         if (!string.IsNullOrWhiteSpace(settings.BearerToken))
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.BearerToken);
 
         if (settings.BasicAuth is { UserName: not null, Password: not null })
         {
-            var value = Convert.ToBase64String(
-                Encoding.UTF8.GetBytes($"{settings.BasicAuth.UserName}:{settings.BasicAuth.Password}"));
+            var value = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{settings.BasicAuth.UserName}:{settings.BasicAuth.Password}"));
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", value);
         }
 
-        if (settings.CustomHeaders is not null)
-            foreach (var kv in settings.CustomHeaders)
-            {
-                request.Headers.Remove(kv.Key);
-                request.Headers.Add(kv.Key, kv.Value);
-            }
+        if (settings.CustomHeaders is null) return;
+        
+        foreach (var kv in settings.CustomHeaders)
+        {
+            request.Headers.Remove(kv.Key);
+            request.Headers.Add(kv.Key, kv.Value);
+        }
     }
 
-    private void ApplyIdempotencyToken(HttpRequestMessage request, string botId)
+    private void ApplyIdempotencyToken(HttpRequestMessage request, string botId, string url)
     {
         if (request.Method != HttpMethod.Post) return;
 
-        var token = _idempotencyTokens.GetOrAdd(botId, _ => Guid.NewGuid().ToString("N"));
+        var key = $"{botId}:{url}";
+        var token = _idempotencyTokens.GetOrAdd(key, _ => Guid.NewGuid().ToString("N"));
+
         request.Headers.Remove("Idempotency-Key");
         request.Headers.Add("Idempotency-Key", token);
     }
