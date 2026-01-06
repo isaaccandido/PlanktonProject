@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -32,6 +33,10 @@ public sealed partial class HttpCommandSource(
 
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddRouting();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
 
         _app = builder.Build();
 
@@ -90,6 +95,17 @@ public sealed partial class HttpCommandSource(
                         );
                         break;
 
+                    case EntityNotFoundException _:
+                        await HandleProblemAsync(
+                            context,
+                            StatusCodes.Status404NotFound,
+                            "Resource was not found.",
+                            $"{_baseAddress}/problems/resource-not-found",
+                            de.Message,
+                            context.Request.Path
+                        );
+                        break;
+
                     default:
                         await HandleProblemAsync(
                             context,
@@ -125,8 +141,7 @@ public sealed partial class HttpCommandSource(
 
         _app.MapPost(CommandEndpoint, async (HttpContext context, CommandRequestModel request) =>
         {
-            if (CommandReceived is null)
-                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            if (CommandReceived is null) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
 
             var correlationId = context.Request.Headers.TryGetValue(XCorrelationId, out var cid)
                 ? cid.ToString()
@@ -155,7 +170,7 @@ public sealed partial class HttpCommandSource(
 
             return result is null
                 ? Results.Accepted()
-                : Results.Ok(result);
+                : Results.Ok(new ApiResponse { Data = result });
         });
 
         await _app.StartAsync(cancellationToken);
@@ -166,8 +181,7 @@ public sealed partial class HttpCommandSource(
             {
                 try
                 {
-                    if (_app is not null)
-                        await _app.StopAsync(CancellationToken.None);
+                    if (_app is not null) await _app.StopAsync(CancellationToken.None);
                 }
                 catch (Exception)
                 {

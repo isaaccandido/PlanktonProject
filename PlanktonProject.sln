@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plankton.DataAccess", "Plan
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plankton.App", "Plankton.App\Plankton.App.csproj", "{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plankton.Bots", "Plankton.Bots\Plankton.Bots.csproj", "{3D357DCD-343E-4021-9308-F5CBBB774F93}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2395C1F9-1B1D-4DE1-9A77-597CD46AAAD6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D357DCD-343E-4021-9308-F5CBBB774F93}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D357DCD-343E-4021-9308-F5CBBB774F93}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D357DCD-343E-4021-9308-F5CBBB774F93}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D357DCD-343E-4021-9308-F5CBBB774F93}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -1,18 +1,37 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Plankton.Core.Domain.Models;
+using Plankton.Core.Enums;
 using Plankton.Core.Interfaces;
 
 namespace Plankton.Core.Domain.Commands.Handlers;
 
-public sealed class ListCommandsCommandHandler(IServiceProvider provider) : ICommandHandler
+public sealed partial class ListCommandsCommandHandler(
+    IServiceProvider provider,
+    ILogger<ListCommandsCommandHandler> logger
+) : ICommandHandler
 {
     public string CommandName => "list-commands";
+
+    public string? Description => """
+                                  Lists all available commands in the suite along with their metadata.
+
+                                  Each command includes:
+                                  - minimumArgsCount : Minimum number of arguments required.
+                                  - description      : A brief description of what the command does.
+                                  - possibleArguments: List of fixed arguments the command accepts (if any).
+
+                                  Example usage:
+                                  list-commands
+                                  """;
+
     public int MinArgs => 0;
-    public string[]? FixedArgs => [];
-    public string? Description => "Lists all available commands.";
+    public string[] FixedArgs => [];
 
     public Task<object?> HandleAsync(CommandModel command)
     {
+        LogListingAllCommandsSourceSource(logger, command.Source);
+
         var commandList = provider.GetServices<ICommandHandler>()
             .ToDictionary(
                 handler => handler.CommandName,
@@ -33,4 +52,10 @@ public sealed class ListCommandsCommandHandler(IServiceProvider provider) : ICom
 
         return Task.FromResult<object?>(response);
     }
+
+    [LoggerMessage(LogLevel.Information, "Listing all commands (Source: {source})")]
+    static partial void LogListingAllCommandsSourceSource(
+        ILogger<ListCommandsCommandHandler> logger,
+        SourceType? source
+    );
 }

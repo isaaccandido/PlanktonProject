@@ -10,3 +10,5 @@ public sealed class InvalidCommandException(string message, string[]? allowedArg
 public sealed class UnauthorizedCommandException() : DomainException("Unauthorized");
 
 public sealed class RateLimitExceededException() : DomainException("Rate limit exceeded");
+
+public sealed class EntityNotFoundException(string message) : DomainException(message);

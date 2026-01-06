@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Plankton.Bots;
 using Plankton.Core.Domain.Commands.Infrastructure;
 using Plankton.Core.Domain.Models;
 using Plankton.Core.Enums;
@@ -7,7 +8,10 @@ using Plankton.Core.Interfaces;
 
 namespace Plankton.Core;
 
-public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
+public partial class PlanktonHostEngine(
+    ILogger<PlanktonHostEngine> logger,
+    CommandBus commandBus,
+    BotEngine botEngine)
 {
     public required CliArgsResultModel CliArgs { get; set; } // TODO find an use for CLI args
 
@@ -28,7 +32,7 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
 
     public async Task RunAsync()
     {
-        LogEngineStartedWaitingForCommands(logger);
+        LogEngineStarted(logger);
 
         LogRegisteredSourceCountCommandSourceSSources(
             logger,
@@ -45,6 +49,8 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
 
             _ = source.StartAsync(_cts.Token);
         }
+
+        _ = botEngine.RunAsync(_cts.Token);
 
         try
         {
@@ -65,14 +71,24 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
             context.CorrelationId
         );
 
-        LogReceivedCommandCommand(logger, context.Command.Name, context.Command.Source);
+        var receivedArgs = string.Join(", ", context.Command.Args);
+
+        LogReceivedCommandCommand(
+            logger,
+            context.Command.Name,
+            receivedArgs,
+            context.Command.Source
+        );
 
         var response = await commandBus.DispatchAsync(context);
 
-        LogResponseResponse(logger, JsonSerializer.Serialize(response, _jsonOptions));
+        var serializedResponse = JsonSerializer.Serialize(response, _jsonOptions);
+
+        LogResponseResponse(logger, serializedResponse);
 
         return response;
     }
+
 
     public async Task ShutdownAsync()
     {
@@ -84,30 +100,34 @@ public partial class Engine(ILogger<Engine> logger, CommandBus commandBus)
         await Task.CompletedTask;
     }
 
-    [LoggerMessage(LogLevel.Information, "Engine started. Waiting for commands.")]
-    static partial void LogEngineStartedWaitingForCommands(ILogger<Engine> logger);
+    [LoggerMessage(LogLevel.Information, "Engine started")]
+    static partial void LogEngineStarted(ILogger<PlanktonHostEngine> logger);
 
-    [LoggerMessage(LogLevel.Information, "Engine stopped.")]
-    static partial void LogEngineStopped(ILogger<Engine> logger);
+    [LoggerMessage(LogLevel.Information, "Engine stopped")]
+    static partial void LogEngineStopped(ILogger<PlanktonHostEngine> logger);
 
-    [LoggerMessage(LogLevel.Information, "Received command: {command} via {source}")]
-    static partial void LogReceivedCommandCommand(ILogger<Engine> logger, string command, SourceType? source);
+    [LoggerMessage(LogLevel.Information, "Received command: [{command}] with args [{receivedArgs}] via {source}")]
+    static partial void LogReceivedCommandCommand(
+        ILogger<PlanktonHostEngine> logger,
+        string command,
+        string receivedArgs,
+        SourceType? source);
 
     [LoggerMessage(LogLevel.Information, "Registering command source {source}")]
-    static partial void LogRegisteringCommandSourceSource(ILogger<Engine> logger, string source);
+    static partial void LogRegisteringCommandSourceSource(ILogger<PlanktonHostEngine> logger, string source);
 
     [LoggerMessage(LogLevel.Information, "Registered {sourceCount} command source(s): {sources}")]
     static partial void LogRegisteredSourceCountCommandSourceSSources(
-        ILogger<Engine> logger,
+        ILogger<PlanktonHostEngine> logger,
         int sourceCount,
         IEnumerable<string> sources);
 
     [LoggerMessage(LogLevel.Information, "Starting command source '{source}'")]
-    static partial void LogStartingCommandSourceSource(ILogger<Engine> logger, string source);
+    static partial void LogStartingCommandSourceSource(ILogger<PlanktonHostEngine> logger, string source);
 
     [LoggerMessage(LogLevel.Information, "Response: {response}")]
-    static partial void LogResponseResponse(ILogger<Engine> logger, string response);
+    static partial void LogResponseResponse(ILogger<PlanktonHostEngine> logger, string response);
 
     [LoggerMessage(LogLevel.Information, "Shutdown requested")]
-    static partial void LogShutdownRequested(ILogger<Engine> logger);
+    static partial void LogShutdownRequested(ILogger<PlanktonHostEngine> logger);
 }

@@ -23,7 +23,7 @@ Plankton is whatever I want it to be. This file will grow over time.
 
 Startup parameters are defined declaratively in the application configuration (`appsettings.json`) under the `cli-options` section.
 
-* **Only HTTP and Telegram commands are active**; CLI commands are for boot-time configuration only.
+* Only HTTP and Telegram commands are active; CLI commands are for boot-time configuration only.
 * Parameters are parsed at startup.
 * Invalid or missing parameters fall back to defaults and emit warnings.
 * `-h`, `--help`, or `-help` prints all available options and exits.
@@ -90,6 +90,118 @@ Other command sources (CLI) are only used for startup parameters.
 
 ---
 
+## Bot Engine
+
+The Bot Engine manages all registered bots and supports the following:
+
+* Start, stop, restart, enable, disable bots individually or in bulk
+* Tracks status (`Idle`, `Running`, `Disabled`, `Crashed`, `Stopped`, `PermanentlyStopped`)
+* Tracks crash counts and next scheduled run
+* Provides full status model (`BotFullStatusModel`) with reason messages
+* Logs bot operations with the bot class name
+* Thread-safe concurrent management
+* Supervises each bot with automatic restart, crash detection, and delays
+
+---
+
+### Bot Lifecycle Operations
+
+| Method             | Description                                         |
+| ------------------ | --------------------------------------------------- |
+| `StartBot(name)`   | Starts a bot if not already running or disabled     |
+| `StopBot(name)`    | Stops a running or idle bot                         |
+| `RestartBot(name)` | Stops and starts a bot                              |
+| `EnableBot(name)`  | Marks a bot as enabled and starts it if not running |
+| `DisableBot(name)` | Marks a bot as disabled and stops it                |
+| `StartAll()`       | Starts all bots                                     |
+| `StopAll()`        | Stops all bots                                      |
+| `RestartAll()`     | Restarts all bots                                   |
+
+---
+
+### Bot Status Model
+
+```json
+{
+  "name": "TestBot",
+  "status": "Disabled",
+  "crashCount": 0,
+  "isRunning": false,
+  "settings": {
+    "enabled": false,
+    "runInterval": "00:00:05",
+    "maxFailures": 3,
+    "restartDelay": "00:00:10"
+  },
+  "nextRun": null,
+  "reason": "Bot is disabled in settings"
+}
+```
+
+* `status` is serialized as an enum string
+* `nextRun` shows the next scheduled execution
+* `reason` explains why a bot is in its current state
+
+---
+
+## BotWebTools HTTP Utilities
+
+`BotWebTools` is a singleton utility class for HTTP interactions for bots. Features:
+
+* Sends HTTP requests with per-bot configuration
+* Supports **Bearer Token** and **Basic Auth**
+* Supports custom headers
+* Automatic **idempotency** for POST requests
+* **Retry** with configurable count and delay
+* **Circuit breaker** per host
+* Logs all requests and responses with bot ID and class name
+* Fully thread-safe for concurrent bot operations
+
+---
+
+### Example Usage
+
+```csharp
+var response = await botWebTools.SendAsync<MyResponse>(
+    "https://api.example.com/endpoint",
+    HttpMethod.Post,
+    botId: "TestBot",
+    body: new { Foo = "Bar" },
+    ct: CancellationToken.None
+);
+
+botWebTools.ResetIdempotencyToken("TestBot");
+```
+
+---
+
+### AppSettings Example
+
+```json
+"BotsHttpSettings": {
+  "Default": {
+    "BearerToken": "",
+    "BasicAuth": { "UserName": "defaultUser", "Password": "defaultPass" },
+    "RetryCount": 3,
+    "RetryDelaySeconds": 2,
+    "CircuitBreakerFailures": 5,
+    "CircuitBreakerDurationSeconds": 30
+  },
+  "Bots": {
+    "TestBot": {
+      "BearerToken": "token-for-testbot",
+      "RetryCount": 5,
+      "CircuitBreakerFailures": 3
+    },
+    "AnotherBot": {
+      "BasicAuth": { "UserName": "bot2", "Password": "pass2" }
+    }
+  }
+}
+```
+
+---
+
 ## Command Flow
 
 ```mermaid
@@ -104,6 +216,7 @@ flowchart TD
         Authorizer[Command Authorizer]
         RateLimiter[Command Rate Limiter]
         Handler[Command Handler Resolver & Handlers]
+        BotEngine[Bot Engine & BotWebTools]
     end
 
     HTTP --> Engine
@@ -112,18 +225,17 @@ flowchart TD
     Validator --> Authorizer
     Authorizer --> RateLimiter
     RateLimiter --> Handler
-    Handler --> Response[Command Response]
+    Handler --> BotEngine
+    BotEngine --> Response[Command Response]
 ```
 
 1. Commands arrive from HTTP or Telegram.
-2. **Validator** checks:
-
-   * Command name exists
-   * Minimum args met
-   * Fixed args (if any) match
+2. **Validator** checks command name, minimum args, fixed args.
 3. **Authorizer** validates the token.
-4. **Rate Limiter** ensures per-command limits are enforced.
-5. **Handlers** execute commands and produce structured responses.
+4. **Rate Limiter** ensures per-command limits.
+5. **Handlers** execute commands.
+6. **Bot Engine & BotWebTools** manage bot execution, HTTP calls, retries, and logging.
+7. Response is returned in structured JSON.
 
 ---
 
@@ -148,9 +260,6 @@ Successful command responses use JSON objects with optional metadata:
 }
 ```
 
-* `possibleArguments` appears only if the command has fixed arguments.
-* `description` appears only if defined for the command.
-
 ---
 
 ## Error Handling
@@ -167,7 +276,7 @@ HTTP and Telegram responses follow **Problem+JSON** RFC 7807:
 }
 ```
 
-* **Correlation ID** is always added to response headers: `X-Correlation-Id`.
+* **Correlation ID** is always added: `X-Correlation-Id`.
 * Error types:
 
   * `InvalidCommandException` → 400
@@ -184,13 +293,32 @@ HTTP and Telegram responses follow **Problem+JSON** RFC 7807:
 
 ---
 
-This README reflects all implemented features:
+This README now fully reflects:
 
-* Command validation & fixed args
-* Optional descriptions
-* Unique bot names normalization
-* HTTP & Telegram command sources
-* CLI configuration only at startup
-* Dynamic base address
-* Error handling with correlation IDs
-* Mermaid flow diagram
+* Bot lifecycle and supervision
+* Full bot status with reason messages
+* Thread-safe concurrent operations
+* HTTP utilities (`BotWebTools`) with auth, headers, retry, circuit breaker, idempotency
+* Configurable per-bot via `appsettings.json`
+* Logging with bot class names
+* All previous command validation, CLI options, and error handling
+
+---
+
+## BotWebTools HTTP Flow Diagram
+
+```mermaid
+flowchart TD
+    Bot[Bot Instance]
+    BotWebTools[BotWebTools]
+    HTTP[HTTP Endpoint]
+
+    Bot --> BotWebTools
+    BotWebTools --> Retry[Retry Policy]
+    Retry --> Circuit[Circuit Breaker]
+    Circuit --> HTTP
+    HTTP --> Circuit
+    Circuit --> Retry
+    Retry --> BotWebTools
+    BotWebTools --> Response[Bot receives response]
+```

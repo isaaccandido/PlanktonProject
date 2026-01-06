@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
 using Plankton.Core.Domain.Commands.Infrastructure;
-using Plankton.Core.Domain.Models;
 using Plankton.Core.Interfaces;
 
 namespace Plankton.Core.Domain.Commands.Sources;

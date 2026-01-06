@@ -7,7 +7,7 @@ public interface ICommandHandler
     string CommandName { get; }
     string? Description { get; }
     int MinArgs { get; }
-    string[]? FixedArgs { get; }
+    string[] FixedArgs { get; }
 
     Task<object?> HandleAsync(CommandModel command);
 }

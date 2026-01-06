@@ -1,6 +1,6 @@
 ﻿namespace Plankton.Core.Domain.Models;
 
-public sealed record ApiResponse<T>
+public sealed record ApiResponse
 {
-    public required T Data { get; init; }
+    public required object Data { get; init; }
 }

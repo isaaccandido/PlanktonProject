@@ -13,7 +13,10 @@ using Serilog;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Plankton.Bots;
+using Plankton.Bots.Utils;
 using Plankton.Core.Domain.Startup;
+using ShutdownSuiteCommandHandler = Plankton.Core.Domain.Commands.Handlers.ShutdownSuiteCommandHandler;
 
 namespace Plankton.Core;
 
@@ -39,7 +42,7 @@ public sealed class Startup
         var parser = host.Services.GetRequiredService<CliParserService>();
         var help = host.Services.GetRequiredService<CliHelpPrinterService>();
         var banner = host.Services.GetRequiredService<BannerProcessor>();
-        var engine = host.Services.GetRequiredService<Engine>();
+        var engine = host.Services.GetRequiredService<PlanktonHostEngine>();
 
         logger.LogInformation("Initializing application...");
         banner.PrintBanner();
@@ -83,16 +86,14 @@ public sealed class Startup
         services.AddSingleton<CliSchemaFactory>();
         services.AddSingleton<CliSchemaModel>(sp => sp.GetRequiredService<CliSchemaFactory>().Build());
         services.AddSingleton<BannerProcessor>();
-        services.AddSingleton<Engine>();
-        services.AddSingleton<Func<Engine>>(sp => sp.GetRequiredService<Engine>);
+        services.AddSingleton<PlanktonHostEngine>();
+        services.AddSingleton<Func<PlanktonHostEngine>>(sp => sp.GetRequiredService<PlanktonHostEngine>);
 
         var commandSourceSettings = configuration.GetSection("commandSources")
             .Get<CommandSourceSettingsModel>() ?? new CommandSourceSettingsModel();
 
         if (commandSourceSettings is { Http.Enabled: false, Telegram.Enabled: false })
-        {
             throw new InvalidOperationException("At least one command source must be enabled (HTTP or Telegram).");
-        }
 
         var allSourceTypes = Assembly.GetExecutingAssembly()
             .GetTypes()
@@ -119,6 +120,9 @@ public sealed class Startup
         services.AddSingleton<ShutdownSuiteCommandHandler>();
         services.AddSingleton<ICommandHandler>(sp => sp.GetRequiredService<ShutdownSuiteCommandHandler>());
         AddCommandHandlers(services);
+
+        services.AddSingleton<BotEngine>();
+        services.AddSingleton<BotWebTools>();
     }
 
     private static void AddCommandHandlers(IServiceCollection services)

@@ -19,7 +19,23 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Plankton.Bots\Plankton.Bots.csproj"/>
         <ProjectReference Include="..\Plankton.DataAccess\Plankton.DataAccess.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="Domain\Commands\Handlers\Bots\**"/>
+        <Compile Remove="Domain\Commands\Handlers\System\**"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Remove="Domain\Commands\Handlers\Bots\**"/>
+        <EmbeddedResource Remove="Domain\Commands\Handlers\System\**"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="Domain\Commands\Handlers\Bots\**"/>
+        <None Remove="Domain\Commands\Handlers\System\**"/>
     </ItemGroup>
 
 </Project>
