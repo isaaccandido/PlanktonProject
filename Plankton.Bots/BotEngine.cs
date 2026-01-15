@@ -2,27 +2,58 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Plankton.Bots.Enums;
 using Plankton.Bots.Interfaces;
 using Plankton.Bots.Models;
+using Plankton.DataAccess;
+using Plankton.DataAccess.Enums;
+using Plankton.DataAccess.Interfaces;
 
 namespace Plankton.Bots;
 
-public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logger)
+public class BotEngine
 {
     private const string BotNotFoundMessage = "Bot could not be found.";
 
+    private readonly DataAccessEngine _dataAccessEngine;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<BotEngine> _logger;
+    private readonly BotEngineOptions _options;
+
     private readonly List<IBot> _bots = [];
-    private readonly ConcurrentDictionary<string, BotStatus> _botStatuses = new();
-    private readonly ConcurrentDictionary<string, int> _botCrashCounts = new();
-    private readonly ConcurrentDictionary<string, DateTime?> _botNextRunTimes = new();
+    private readonly ConcurrentDictionary<string, BotRuntimeStateModel> _runtimeStates = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _botCts = new();
     private readonly ConcurrentDictionary<string, Task> _botTasks = new();
 
+    private readonly IDataStore<BotSettingsModel> _settingsStore;
+    private readonly IDataStore<BotRuntimeStateModel> _defaultRuntimeStore;
+
+    public BotEngine(
+        DataAccessEngine dataAccessEngine,
+        IServiceProvider serviceProvider,
+        ILogger<BotEngine> logger,
+        IOptions<BotEngineOptions> options
+    )
+    {
+        _dataAccessEngine = dataAccessEngine;
+        _serviceProvider = serviceProvider;
+        _logger = logger;
+        _options = options.Value;
+
+        _settingsStore = _dataAccessEngine.Resolve<BotSettingsModel>(_options.RuntimeStateStorage);
+        _defaultRuntimeStore = _dataAccessEngine.Resolve<BotRuntimeStateModel>(_options.RuntimeStateStorage);
+    }
+
     public async Task RunAsync(CancellationToken ct)
     {
-        LoadBots();
-        _bots.ForEach(b => StartBot(b.Name));
+        await LoadBotsAsync();
+
+        foreach (var bot in _bots)
+        {
+            var state = await GetBotRuntimeStateAsync(bot);
+            if (state.Status == BotStatus.Idle) StartBot(bot.Name);
+        }
 
         try
         {
@@ -30,15 +61,15 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
         }
         catch (OperationCanceledException)
         {
-            logger.LogInformation("Bot engine cancelled");
+            _logger.LogInformation("Bot engine cancelled");
         }
 
-        logger.LogInformation("Bot engine stopped");
+        _logger.LogInformation("Bot engine stopped");
     }
 
-    private void LoadBots()
+    private async Task LoadBotsAsync()
     {
-        logger.LogInformation("Scanning for bots...");
+        _logger.LogInformation("Scanning for bots...");
 
         var botTypes = AppDomain.CurrentDomain.GetAssemblies()
             .SelectMany(GetLoadableTypes)
@@ -48,44 +79,87 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
         foreach (var botType in botTypes)
             try
             {
-                var bot = (IBot)ActivatorUtilities.CreateInstance(serviceProvider, botType);
+                var bot = (IBot)ActivatorUtilities.CreateInstance(_serviceProvider, botType);
+
+                var persistedSettings = await _settingsStore.GetAsync(bot.Name);
+                if (persistedSettings != null)
+                    bot.Settings = persistedSettings;
+                else
+                    await _settingsStore.SetAsync(bot.Name, bot.Settings);
 
                 _bots.Add(bot);
-                _botStatuses[bot.Name] = bot.Settings.Enabled ? BotStatus.Idle : BotStatus.Disabled;
-                _botCrashCounts[bot.Name] = 0;
-                _botNextRunTimes[bot.Name] = bot.Settings.Enabled
-                    ? DateTime.UtcNow.Add(bot.Settings.RunInterval ?? TimeSpan.FromMinutes(1))
-                    : null;
 
-                logger.LogInformation("Loaded bot {BotName}", bot.Name);
+                var runtimeState = await GetBotRuntimeStateAsync(bot);
+                runtimeState.Status = bot.Settings.Enabled ? BotStatus.Idle : BotStatus.Disabled;
+                _runtimeStates[bot.Name] = runtimeState;
+
+                _logger.LogInformation("Loaded bot {BotName}", bot.Name);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to load bot {BotType}", botType.FullName);
+                _logger.LogError(ex, "Failed to load bot {BotType}", botType.FullName);
             }
 
-        if (_bots.Count == 0) logger.LogWarning("No bots found!");
+        if (_bots.Count == 0) _logger.LogWarning("No bots found!");
     }
 
-    public IEnumerable<(string Name, BotStatus Status, int CrashCount)> GetAllBotStatuses()
+    private IDataStore<BotRuntimeStateModel> GetRuntimeStore(IBot bot)
     {
-        return _bots.Select(bot =>
-        (
-            bot.Name,
-            _botStatuses.GetValueOrDefault(bot.Name, BotStatus.Disabled),
-            _botCrashCounts.GetValueOrDefault(bot.Name, 0)
-        ));
+        return bot.StateStorage != DataAccessType.InMemory
+            ? _dataAccessEngine.Resolve<BotRuntimeStateModel>(bot.StateStorage)
+            : _defaultRuntimeStore;
+    }
+
+    private async Task<BotRuntimeStateModel> GetBotRuntimeStateAsync(IBot bot)
+    {
+        var store = GetRuntimeStore(bot);
+        var runtimeState = await store.GetAsync(bot.Name);
+        if (runtimeState != null) return runtimeState;
+
+        runtimeState = new BotRuntimeStateModel
+        {
+            BotName = bot.Name,
+            Status = bot.Settings.Enabled ? BotStatus.Idle : BotStatus.Disabled,
+            CrashCount = 0,
+            NextRunUtc = DateTime.UtcNow
+        };
+
+        await store.SetAsync(bot.Name, runtimeState);
+        return runtimeState;
+    }
+
+    private async Task PersistRuntimeStateAsync(IBot bot, BotRuntimeStateModel state)
+    {
+        var store = GetRuntimeStore(bot);
+        await store.SetAsync(bot.Name, state);
+        _runtimeStates[bot.Name] = state;
+    }
+
+    public BotActionResultModel GetAllBotStatuses()
+    {
+        return new BotActionResultModel(true, Result:
+            _bots.Select(bot =>
+            {
+                _runtimeStates.TryGetValue(bot.Name, out var state);
+                return (
+                    bot.Name,
+                    state?.Status ?? BotStatus.Disabled,
+                    state?.CrashCount ?? 0
+                );
+            })
+        );
     }
 
     public BotStatusModel? GetBotStatus(string botName)
     {
         var bot = FindBotByName(botName);
+        if (bot == null) return null;
 
-        if (bot is null) return null;
+        _runtimeStates.TryGetValue(bot.Name, out var state);
 
-        _botStatuses.TryGetValue(bot.Name, out var status);
-        _botNextRunTimes.TryGetValue(bot.Name, out var nextRun);
-        _botCrashCounts.TryGetValue(bot.Name, out var crashCount);
+        var status = state?.Status ?? BotStatus.Disabled;
+        var crashCount = state?.CrashCount ?? 0;
+        var nextRun = state?.NextRunUtc;
 
         var reason = status switch
         {
@@ -116,10 +190,10 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
     public BotActionResultModel StartBot(string botName)
     {
         var bot = FindBotByName(botName);
-
         if (bot == null) return new BotActionResultModel(false, BotNotFoundMessage);
 
-        var status = _botStatuses.GetValueOrDefault(bot.Name, BotStatus.Disabled);
+        _runtimeStates.TryGetValue(bot.Name, out var state);
+        var status = state?.Status ?? BotStatus.Disabled;
 
         switch (status)
         {
@@ -129,22 +203,15 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
                 return new BotActionResultModel(false, "Bot is permanently stopped due to exceeding max failures");
             case BotStatus.Disabled:
                 return new BotActionResultModel(false, "Bot is currently disabled");
-            case BotStatus.Crashed:
-            case BotStatus.Stopped:
-            case BotStatus.Idle:
-                break;
-            default:
-                throw new Exception("Unknown status");
         }
 
         var cts = new CancellationTokenSource();
-
         if (!_botCts.TryAdd(bot.Name, cts))
             return new BotActionResultModel(false, "Failed to initialize bot supervision task");
 
         _botTasks[bot.Name] = SuperviseBot(bot, cts.Token);
 
-        logger.LogInformation("Supervision task started for bot {BotName}", bot.Name);
+        _logger.LogInformation("Supervision task started for bot {BotName}", bot.Name);
 
         return new BotActionResultModel(true);
     }
@@ -152,10 +219,10 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
     public BotActionResultModel StopBot(string botName)
     {
         var bot = FindBotByName(botName);
-
         if (bot == null) return new BotActionResultModel(false, BotNotFoundMessage);
 
-        var status = _botStatuses.GetValueOrDefault(bot.Name, BotStatus.Disabled);
+        _runtimeStates.TryGetValue(bot.Name, out var state);
+        var status = state?.Status ?? BotStatus.Disabled;
 
         if (status != BotStatus.Running && status != BotStatus.Idle)
             return new BotActionResultModel(false, $"Stop failed: bot is in status '{status}'");
@@ -165,28 +232,10 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
 
         cts.Cancel();
 
-        _botStatuses[bot.Name] = BotStatus.Stopped;
+        state?.Status = BotStatus.Stopped;
+        _logger.LogInformation("Bot {BotName} supervision cancelled", bot.Name);
 
-        logger.LogInformation("Bot {BotName} supervision cancelled", bot.Name);
-
-        return new BotActionResultModel(true);
-    }
-
-    public BotActionResultModel DisableBot(string botName)
-    {
-        var bot = FindBotByName(botName);
-
-        if (bot == null) return new BotActionResultModel(false, BotNotFoundMessage);
-
-        var stopResult = StopBot(botName);
-
-        if (!stopResult.Success && _botStatuses[bot.Name] != BotStatus.Disabled) return stopResult;
-
-        _botStatuses[bot.Name] = BotStatus.Disabled;
-
-        bot.Settings.Enabled = false;
-
-        logger.LogInformation("Bot {BotName} disabled successfully", bot.Name);
+        PersistRuntimeStateAsync(bot, state!).GetAwaiter().GetResult();
 
         return new BotActionResultModel(true);
     }
@@ -194,53 +243,82 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
     public BotActionResultModel EnableBot(string botName)
     {
         var bot = FindBotByName(botName);
-
         if (bot == null) return new BotActionResultModel(false, BotNotFoundMessage);
 
-        var currentStatus = _botStatuses.GetValueOrDefault(bot.Name, BotStatus.Disabled);
+        _runtimeStates.TryGetValue(bot.Name, out var state);
+        var status = state?.Status ?? BotStatus.Disabled;
 
-        if (currentStatus is BotStatus.Running or BotStatus.Idle)
+        if (status == BotStatus.Running || status == BotStatus.Idle)
             return new BotActionResultModel(false, "Bot is already enabled");
 
         bot.Settings.Enabled = true;
+        _settingsStore.SetAsync(bot.Name, bot.Settings).GetAwaiter().GetResult();
 
-        if (currentStatus == BotStatus.Disabled) _botStatuses[bot.Name] = BotStatus.Idle;
+        state?.Status = BotStatus.Idle;
+        PersistRuntimeStateAsync(bot, state!).GetAwaiter().GetResult();
 
-        var startResult = StartBot(botName);
+        return StartBot(botName);
+    }
 
-        if (!startResult.Success) return new BotActionResultModel(false, $"Failed to start bot: {startResult.Reason}");
+    public BotActionResultModel DisableBot(string botName)
+    {
+        var stopResult = StopBot(botName);
+        if (!stopResult.Success) return stopResult;
 
-        logger.LogInformation("Bot {BotName} enabled successfully", bot.Name);
+        var bot = FindBotByName(botName)!;
+        bot.Settings.Enabled = false;
+        _settingsStore.SetAsync(bot.Name, bot.Settings).GetAwaiter().GetResult();
+
+        _runtimeStates.TryGetValue(bot.Name, out var state);
+        state?.Status = BotStatus.Disabled;
+        PersistRuntimeStateAsync(bot, state!).GetAwaiter().GetResult();
 
         return new BotActionResultModel(true);
     }
 
     public BotActionResultModel RestartBot(string botName)
     {
-        logger.LogInformation("Bot {BotName} restarting bot", botName);
-
-        var stopResult = StopBot(botName);
-
-        if (!stopResult.Success) return stopResult;
-
-        _botCrashCounts[botName] = 0;
-
+        StopBot(botName);
+        _runtimeStates.TryGetValue(botName, out var state);
+        state?.CrashCount = 0;
+        PersistRuntimeStateAsync(FindBotByName(botName)!, state!).GetAwaiter().GetResult();
         return StartBot(botName);
+    }
+
+    public BotActionResultModel ResetBotState(string botName)
+    {
+        var bot = FindBotByName(botName);
+        if (bot == null) return new BotActionResultModel(false, BotNotFoundMessage);
+
+        var store = GetRuntimeStore(bot);
+        store.DeleteAsync(bot.Name).GetAwaiter().GetResult();
+
+        _runtimeStates[bot.Name] = new BotRuntimeStateModel
+        {
+            BotName = bot.Name,
+            Status = BotStatus.Idle,
+            CrashCount = 0,
+            NextRunUtc = DateTime.UtcNow
+        };
+
+        return new BotActionResultModel(true, "Bot runtime state reset successfully");
     }
 
     private async Task SuperviseBot(IBot bot, CancellationToken ct)
     {
-        var settings = bot.Settings;
         var threadId = Environment.CurrentManagedThreadId;
-
-        logger.LogInformation("Supervision task started for bot {BotName} on thread {ThreadId}", bot.Name, threadId);
 
         while (!ct.IsCancellationRequested)
         {
-            if (!settings.Enabled)
+            var state = await GetBotRuntimeStateAsync(bot);
+
+            if (!bot.Settings.Enabled)
             {
-                _botStatuses[bot.Name] = BotStatus.Disabled;
-                logger.LogInformation("Bot {BotName} disabled. Waiting indefinitely.", bot.Name);
+                state.Status = BotStatus.Disabled;
+                await PersistRuntimeStateAsync(bot, state);
+
+                _logger.LogInformation("Bot {BotName} disabled. Waiting indefinitely.", bot.Name);
+
                 try
                 {
                     await Task.Delay(Timeout.Infinite, ct);
@@ -251,13 +329,12 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
                 }
             }
 
-            if (_botCrashCounts[bot.Name] >= settings.MaxFailures)
+            if (state.CrashCount >= bot.Settings.MaxFailures)
             {
-                _botStatuses[bot.Name] = BotStatus.PermanentlyStopped;
-                logger.LogWarning(
-                    "Bot {BotName} exceeded max failures ({MaxFailures}) and is permanently stopped",
-                    bot.Name, settings.MaxFailures
-                );
+                state.Status = BotStatus.PermanentlyStopped;
+                await PersistRuntimeStateAsync(bot, state);
+
+                _logger.LogWarning("Bot {BotName} exceeded max failures and is permanently stopped", bot.Name);
 
                 try
                 {
@@ -271,49 +348,60 @@ public class BotEngine(IServiceProvider serviceProvider, ILogger<BotEngine> logg
 
             try
             {
-                _botStatuses[bot.Name] = BotStatus.Running;
-                logger.LogInformation("Bot {BotName} started running (Thread {ThreadId})", bot.Name, threadId);
+                state.Status = BotStatus.Running;
+                await PersistRuntimeStateAsync(bot, state);
+
+                _logger.LogInformation("Bot {BotName} started running (Thread {ThreadId})",
+                    bot.Name,
+                    threadId
+                );
 
                 await bot.RunAsync(ct);
 
-                _botStatuses[bot.Name] = BotStatus.Idle;
-                logger.LogInformation("Bot {BotName} finished running (Thread {ThreadId})", bot.Name, threadId);
+                state.Status = BotStatus.Idle;
+                state.NextRunUtc = DateTime.UtcNow + (bot.Settings.RunInterval ?? TimeSpan.FromMinutes(1));
+                state.CrashCount = 0;
 
-                var wait = settings.RunInterval ?? TimeSpan.FromMinutes(1);
-                var nextRunAt = DateTime.UtcNow.Add(wait);
-                _botNextRunTimes[bot.Name] = nextRunAt;
+                await PersistRuntimeStateAsync(bot, state);
 
-                logger.LogInformation(
-                    "Bot {BotName} will next run at {NextRun} (Thread {ThreadId})",
-                    bot.Name, nextRunAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), threadId
+                _logger.LogInformation("Bot {BotName} finished running, next run at {NextRun}",
+                    bot.Name,
+                    state.NextRunUtc?.ToLocalTime()
                 );
 
-                await Task.Delay(wait, ct);
+                await Task.Delay(bot.Settings.RunInterval ?? TimeSpan.FromMinutes(1), ct);
             }
             catch (OperationCanceledException)
             {
-                _botStatuses[bot.Name] = BotStatus.Stopped;
-                logger.LogInformation("Bot {BotName} stopped (Thread {ThreadId})", bot.Name, threadId);
+                state.Status = BotStatus.Stopped;
+                await PersistRuntimeStateAsync(bot, state);
+
+                _logger.LogInformation("Bot {BotName} stopped (Thread {ThreadId})",
+                    bot.Name,
+                    threadId
+                );
+
                 break;
             }
             catch (Exception ex)
             {
-                _botCrashCounts.AddOrUpdate(bot.Name, 1, (_, old) => old + 1);
-                _botStatuses[bot.Name] = BotStatus.Crashed;
+                state.CrashCount++;
+                state.Status = BotStatus.Crashed;
+                await PersistRuntimeStateAsync(bot, state);
 
-                logger.LogError(
-                    ex,
-                    "Bot {BotName} crashed ({Attempt}/{MaxFailures}) on thread {ThreadId}",
-                    bot.Name, _botCrashCounts[bot.Name], settings.MaxFailures, threadId
+                _logger.LogError(ex, "Bot {BotName} crashed ({Attempt}/{MaxFailures})",
+                    bot.Name,
+                    state.CrashCount,
+                    bot.Settings.MaxFailures
                 );
 
-                await Task.Delay(settings.RestartDelay, ct);
+                await Task.Delay(bot.Settings.RestartDelay, ct);
             }
         }
 
         _botCts.TryRemove(bot.Name, out _);
         _botTasks.TryRemove(bot.Name, out _);
-        logger.LogInformation("Supervision task for bot {BotName} exited (Thread {ThreadId})", bot.Name, threadId);
+        _logger.LogInformation("Supervision task for bot {BotName} exited (Thread {ThreadId})", bot.Name, threadId);
     }
 
     private IBot? FindBotByName(string name)

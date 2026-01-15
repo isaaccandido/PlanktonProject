@@ -12,10 +12,14 @@ using Serilog;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Plankton.Bots;
+using Plankton.Bots.Models;
 using Plankton.Bots.Utils;
 using Plankton.Core.Domain.Commands.Handlers;
 using Plankton.Core.Domain.Startup;
 using Plankton.Core.Enums;
+using Plankton.DataAccess;
+using Plankton.DataAccess.DataStores;
+using Plankton.DataAccess.Interfaces;
 
 namespace Plankton.Core;
 
@@ -85,6 +89,8 @@ public sealed class Startup
 
     private static void AddServices(IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<BotEngineOptions>(configuration.GetSection("BotEngine"));
+
         configuration["application:baseAddress"] = GetBaseAddressFromEnvironment();
 
         services.AddSingleton<CliParserService>();
@@ -129,6 +135,9 @@ public sealed class Startup
 
         services.AddSingleton<BotEngine>();
         services.AddSingleton<BotWebTools>();
+
+        services.AddSingleton<DataAccessEngine>();
+        services.AddSingleton(typeof(IDataStore<>), typeof(InMemoryDataStore<>));
     }
 
     private static void AddCommandHandlers(IServiceCollection services)

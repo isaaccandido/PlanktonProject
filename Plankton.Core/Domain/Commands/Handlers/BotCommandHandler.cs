@@ -24,6 +24,8 @@ public sealed partial class BotCommandHandler(
                                  - enable <botName>  : Enables a disabled bot.
                                  - disable <botName> : Disables the bot immediately.
                                  - status <botName>  : Retrieves the full status of the bot.
+                                 - full-report       : Retrieves the full status of all bots.
+                                 - reset <botName>   : Resets the bot.
 
                                  Examples:
                                  bot start MyBot
@@ -31,6 +33,7 @@ public sealed partial class BotCommandHandler(
                                  bot restart MyBot
                                  bot enable MyBot
                                  bot disable MyBot
+                                 bot status MyBot
                                  bot status MyBot
                                  """;
 
@@ -71,6 +74,8 @@ public sealed partial class BotCommandHandler(
             "restart" => botEngine.RestartBot(botName),
             "enable" => botEngine.EnableBot(botName),
             "disable" => botEngine.DisableBot(botName),
+            "reset" => botEngine.ResetBotState(botName),
+            "full-report" => botEngine.GetAllBotStatuses(),
             _ => new BotActionResultModel(
                 false,
                 $"Unknown action. Run 'list-commands' to get available parameters for '{CommandName}'."
