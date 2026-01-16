@@ -9,11 +9,10 @@ pipeline {
     stages {
         stage('Build Podman Image') {
             steps {
-                echo "🛠️ Building image ${NAME} …"
+                echo "🛠️ Building image ${NAME}"
                 sh """
                     sudo podman build \
                         --pull \
-                        --no-cache \
                         -t ${NAME} \
                         -f ${DOCKERFILE_PATH} .
                 """
@@ -22,30 +21,25 @@ pipeline {
 
         stage('Deploy Podman Container') {
             steps {
-                echo "🚀 Deploying container ${NAME} …"
-                sh """
-                    if sudo podman ps -a --format '{{.Names}}' | grep -q \"^${NAME}\$\"; then
-                        echo '🧹 Removing existing container…'
-                        sudo podman rm -f ${NAME}
-                    fi
+                withFolderProperties {
+                    echo "🚀 Deploying container ${NAME}"
+                    sh """
+                        if sudo podman ps -a --format '{{.Names}}' | grep -q "^${NAME}\$"; then
+                            sudo podman rm -f ${NAME}
+                        fi
 
-                    sudo podman run \
-                        --network=host \
-                        --restart always \
-                        --name ${NAME} \
-                        -d \
-                        ${NAME}
-                """
-            }
-        }
-
-        stage('Verify Runtime') {
-            steps {
-                echo "🔍 Checking .NET runtimes in the running container…"
-                sh """
-                    sudo podman exec ${NAME} dotnet --list-runtimes || true
-                    sudo podman exec ${NAME} dotnet --info || true
-                """
+                        sudo podman run \
+                            --network=host \
+                            --restart always \
+                            --name ${NAME} \
+                            -e PLANKTON_BASE_ADDRESS=${env.PLANKTON_BASE_ADDRESS} \
+                            -e PLANKTON_HTTP_ID=${env.PLANKTON_HTTP_ID} \
+                            -e PLANKTON_TELEGRAM_ID=${env.PLANKTON_TELEGRAM_ID} \
+                            -e PLANKTON_TELEGRAM_TOKEN=${env.PLANKTON_TELEGRAM_TOKEN} \
+                            -d \
+                            ${NAME}
+                    """
+                }
             }
         }
     }
