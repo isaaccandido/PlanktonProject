@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        NAME      = 'Plankton'
+        NAME      = 'plankton'
         DOCKERFILE_PATH = './Plankton.App/Dockerfile'
     }
 
