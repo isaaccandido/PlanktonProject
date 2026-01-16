@@ -82,10 +82,9 @@ public class BotEngine
                 var bot = (IBot)ActivatorUtilities.CreateInstance(_serviceProvider, botType);
 
                 var persistedSettings = await _settingsStore.GetAsync(bot.Name);
-                if (persistedSettings != null)
-                    bot.Settings = persistedSettings;
-                else
-                    await _settingsStore.SetAsync(bot.Name, bot.Settings);
+                
+                if (persistedSettings != null) bot.Settings = persistedSettings;
+                else await _settingsStore.SetAsync(bot.Name, bot.Settings);
 
                 _bots.Add(bot);
 
@@ -97,7 +96,7 @@ public class BotEngine
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to load bot {BotType}", botType.FullName);
+                _logger.LogError(ex, "Failed to load bot {BotType}", botType.Name);
             }
 
         if (_bots.Count == 0) _logger.LogWarning("No bots found!");
