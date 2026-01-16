@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+
+    environment {
+        NAME      = 'Plankton'
+        DOCKERFILE_PATH = './Plankton.App/Dockerfile'
+    }
+
+    stages {
+        stage('Restore and Publish') {
+            steps {
+                sh 'dotnet restore'
+                sh 'dotnet publish -c Release -o out'
+            }
+        }
+
+        stage('Build Podman Image') {
+            steps {
+                sh """
+                    sudo podman build -t ${NAME} -f ${DOCKERFILE_PATH} .
+                """
+            }
+        }
+
+        stage('Deploy Podman Container') {
+            steps {
+                sh """
+                    if sudo podman ps -a --format '{{.Names}}' | grep -q "^${NAME}\$"; then
+                        sudo podman rm -f ${NAME}
+                    fi
+
+                    sudo podman run \
+                        --network=host \
+                        --restart always \
+                        --name ${NAME} \
+                        -d \
+                        ${NAME}
+                """
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo '✅ Pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+        }
+    }
+}
