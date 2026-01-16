@@ -2,30 +2,30 @@ pipeline {
     agent any
 
     environment {
-        NAME      = 'plankton'
+        NAME = 'plankton'
         DOCKERFILE_PATH = './Plankton.App/Dockerfile'
     }
 
     stages {
-        stage('Restore and Publish') {
-            steps {
-                sh 'dotnet restore'
-                sh 'dotnet publish -c Release -o out'
-            }
-        }
-
         stage('Build Podman Image') {
             steps {
+                echo "🛠️ Building image ${NAME} …"
                 sh """
-                    sudo podman build -t ${NAME} -f ${DOCKERFILE_PATH} .
+                    sudo podman build \
+                        --pull \
+                        --no-cache \
+                        -t ${NAME} \
+                        -f ${DOCKERFILE_PATH} .
                 """
             }
         }
 
         stage('Deploy Podman Container') {
             steps {
+                echo "🚀 Deploying container ${NAME} …"
                 sh """
-                    if sudo podman ps -a --format '{{.Names}}' | grep -q "^${NAME}\$"; then
+                    if sudo podman ps -a --format '{{.Names}}' | grep -q \"^${NAME}\$\"; then
+                        echo '🧹 Removing existing container…'
                         sudo podman rm -f ${NAME}
                     fi
 
@@ -35,6 +35,16 @@ pipeline {
                         --name ${NAME} \
                         -d \
                         ${NAME}
+                """
+            }
+        }
+
+        stage('Verify Runtime') {
+            steps {
+                echo "🔍 Checking .NET runtimes in the running container…"
+                sh """
+                    sudo podman exec ${NAME} dotnet --list-runtimes || true
+                    sudo podman exec ${NAME} dotnet --info || true
                 """
             }
         }
