@@ -30,8 +30,7 @@ public class RestReminderBot(BotWebTools botWebTools) : IBot
             var utcNow = DateTime.UtcNow;
             var brazilTimeZone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
             var brazilTime = TimeZoneInfo.ConvertTimeFromUtc(utcNow, brazilTimeZone);
-
-
+            
             ResetIfNewDay(brazilTime);
 
             if (!IsWorkday(brazilTime))
