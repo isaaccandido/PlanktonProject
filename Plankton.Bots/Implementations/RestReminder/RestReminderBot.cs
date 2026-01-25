@@ -27,21 +27,23 @@ public class RestReminderBot(BotWebTools botWebTools) : IBot
     {
         while (!ct.IsCancellationRequested)
         {
-            var now = DateTime.Now;
+            var utcNow = DateTime.UtcNow;
+            var brazilTimeZone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
+            var brazilTime = TimeZoneInfo.ConvertTimeFromUtc(utcNow, brazilTimeZone);
+            
+            ResetIfNewDay(brazilTime);
 
-            ResetIfNewDay(now);
-
-            if (!IsWorkday(now))
+            if (!IsWorkday(brazilTime))
             {
                 await Task.Delay(TimeSpan.FromMinutes(1), ct);
                 continue;
             }
 
-            await HandleBreakReminder(now, ct);
-            await HandleBackFromBreak(now, ct);
-            await HandleLunch(now, ct);
-            await HandleBackFromLunch(now, ct);
-            await HandleEndOfDay(now, ct);
+            await HandleBreakReminder(brazilTime, ct);
+            await HandleBackFromBreak(brazilTime, ct);
+            await HandleLunch(brazilTime, ct);
+            await HandleBackFromLunch(brazilTime, ct);
+            await HandleEndOfDay(brazilTime, ct);
 
             await Task.Delay(TimeSpan.FromMinutes(1), ct);
         }
