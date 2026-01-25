@@ -33,24 +33,23 @@ public sealed class BotWebTools(
         if (string.IsNullOrWhiteSpace(targetUrl))
             throw new ArgumentException($"No URL provided for bot '{botId}'.");
 
-        using var request = new HttpRequestMessage(method, targetUrl);
-
-        if (body is not null)
-        {
-            var json = JsonSerializer.Serialize(body, _jsonOptions);
-            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        }
-
-        ApplyHeaders(request, settings);
-        ApplyIdempotencyToken(request, botId, targetUrl);
-
         var policyKey = $"{botId}:{new Uri(targetUrl).Host}";
         var policy = _policies.GetOrAdd(policyKey, _ => CreatePolicy(policyKey, settings));
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         logger.LogInformation("[{BotId}] Sending {Method} request to {Url}", botId, method, targetUrl);
 
-        var response = await policy.ExecuteAsync(token => _httpClient.SendAsync(request, token), ct);
+        using var response = await policy.ExecuteAsync(async token =>
+        {
+            using var request = CreateRequest(
+                method,
+                targetUrl,
+                body,
+                settings,
+                botId);
+
+            return await _httpClient.SendAsync(request, token);
+        }, ct);
 
         sw.Stop();
 
@@ -70,6 +69,27 @@ public sealed class BotWebTools(
     {
         var key = $"{botId}:{url}";
         _idempotencyTokens.TryRemove(key, out _);
+    }
+
+    private HttpRequestMessage CreateRequest(
+        HttpMethod method,
+        string targetUrl,
+        object? body,
+        BotHttpSettings settings,
+        string botId)
+    {
+        var request = new HttpRequestMessage(method, targetUrl);
+
+        if (body is not null)
+        {
+            var json = JsonSerializer.Serialize(body, _jsonOptions);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        }
+
+        ApplyHeaders(request, settings);
+        ApplyIdempotencyToken(request, botId, targetUrl);
+
+        return request;
     }
 
     private BotHttpSettings GetSettingsForBot(string botId)
@@ -111,7 +131,10 @@ public sealed class BotWebTools(
                 settings.RetryCount,
                 _ => TimeSpan.FromSeconds(settings.RetryDelaySeconds),
                 (resp, _, retryCount, _) =>
-                    logger.LogWarning("[{Key}] Retry {RetryCount} due to {Reason}", key, retryCount,
+                    logger.LogWarning(
+                        "[{Key}] Retry {RetryCount} due to {Reason}",
+                        key,
+                        retryCount,
                         resp.Exception?.Message ?? resp.Result?.StatusCode.ToString())
             );
 
@@ -132,16 +155,19 @@ public sealed class BotWebTools(
     private void ApplyHeaders(HttpRequestMessage request, BotHttpSettings settings)
     {
         if (!string.IsNullOrWhiteSpace(settings.BearerToken) && settings.BasicAuth is not null)
-            throw new InvalidOperationException("Cannot use both BearerToken and BasicAuth for the same bot request.");
+            throw new InvalidOperationException(
+                "Cannot use both BearerToken and BasicAuth for the same bot request.");
 
         if (!string.IsNullOrWhiteSpace(settings.BearerToken))
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.BearerToken);
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", settings.BearerToken);
 
         if (settings.BasicAuth is { UserName: not null, Password: not null })
         {
             var value = Convert.ToBase64String(
                 Encoding.UTF8.GetBytes($"{settings.BasicAuth.UserName}:{settings.BasicAuth.Password}"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", value);
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Basic", value);
         }
 
         if (settings.CustomHeaders is null) return;
