@@ -16,7 +16,7 @@ public class RestReminderBot(BotWebTools botWebTools) : IBot
 
     public BotSettingsModel Settings { get; set; } = new()
     {
-        Enabled = true,
+        Enabled = false,
         RunInterval = TimeSpan.FromDays(1),
         MaxFailures = 3,
         RestartDelay = TimeSpan.FromSeconds(10)

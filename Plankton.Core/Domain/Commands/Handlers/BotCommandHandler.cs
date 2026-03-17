@@ -37,7 +37,7 @@ public sealed partial class BotCommandHandler(
                                  bot status MyBot
                                  """;
 
-    public int MinArgs => 2;
+    public int MinArgs => 1;
     public string[] FixedArgs => [];
 
     public Task<object?> HandleAsync(CommandModel command)
