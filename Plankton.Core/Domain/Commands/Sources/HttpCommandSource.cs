@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -32,6 +33,13 @@ public sealed partial class HttpCommandSource(
         LogStartingCommandSource(logger);
 
         var builder = WebApplication.CreateBuilder();
+        var configHttpSection = configuration.GetSection("commandSources:http");
+        var scheme = configHttpSection["scheme"] ?? "http";
+        var host = configHttpSection["host"] ?? "localhost";
+        var port = configHttpSection.GetValue<int?>("port") ?? 5000;
+        
+        builder.WebHost.UseUrls($"{scheme}://{host}:{port}");
+        
         builder.Services.AddRouting();
         builder.Services.ConfigureHttpJsonOptions(options =>
         {
