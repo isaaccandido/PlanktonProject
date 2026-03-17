@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Net;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Plankton.Core.Domain.Commands.Infrastructure;
 using Plankton.Core.Domain.ExceptionHandling;
@@ -14,8 +15,15 @@ namespace Plankton.Core.Domain.Commands.Sources;
 
 public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger) : ICommandSource
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true
+    };
+
     private ITelegramBotClient? _botClient;
+
     public string? Token { get; set; }
+
     public event Func<CommandContext, Task<object?>>? CommandReceived;
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -32,8 +40,8 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
         logger.LogInformation("Telegram bot started as @{Username} (Id {Id})", me.Username, me.Id);
 
         _botClient.StartReceiving(
-            HandleUpdateAsync,
-            HandlePollingErrorAsync,
+            updateHandler: HandleUpdateAsync,
+            errorHandler: HandlePollingErrorAsync,
             cancellationToken: cancellationToken
         );
 
@@ -49,11 +57,15 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
                 logger.LogError(ex, "Error stopping TelegramCommandSource");
             }
         });
+
         return;
 
         async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Type != UpdateType.Message || update.Message?.Type != MessageType.Text) return;
+            if (update.Type != UpdateType.Message || update.Message?.Type != MessageType.Text)
+            {
+                return;
+            }
 
             var correlationId = Guid.NewGuid().ToString("N");
             var chatId = update.Message.Chat.Id;
@@ -62,7 +74,10 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
             try
             {
                 var commandParts = commandText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (commandParts.Length == 0) return;
+                if (commandParts.Length == 0)
+                {
+                    return;
+                }
 
                 var command = new CommandModel
                 {
@@ -75,13 +90,15 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
                 var context = new CommandContext
                 {
                     Command = command,
-                    Token = update.Message.Chat.Id.ToString(),
+                    Token = chatId.ToString(),
                     CorrelationId = correlationId
                 };
 
-                var result = await CommandReceived?.Invoke(context)!;
+                var result = CommandReceived is not null
+                    ? await CommandReceived.Invoke(context)
+                    : null;
 
-                if (result != null)
+                if (result is not null)
                 {
                     var response = new
                     {
@@ -89,42 +106,40 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
                         data = result
                     };
 
-                    var json = JsonSerializer.Serialize(response);
-
-                    // TODO fix response, maybe a transformer and stuff. 
-                    await botClient.SendMessage(
-                        chatId,
-                        json,
-                        ParseMode.MarkdownV2,
-                        cancellationToken: ct
-                    );
+                    await SendJsonAsync(botClient, chatId, response, ct);
                 }
             }
             catch (DomainException de)
             {
-                await SendProblemJsonAsync(botClient, chatId, de, correlationId);
+                await SendProblemJsonAsync(botClient, chatId, de, correlationId, ct);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "[{CorrelationId}] Unhandled error processing Telegram message", correlationId);
-                await SendProblemJsonAsync(botClient, chatId, null, correlationId, ex.Message);
+                await SendProblemJsonAsync(botClient, chatId, null, correlationId, ct, ex.Message);
             }
         }
 
-        async Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken ct)
+        Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken ct)
         {
             if (exception is ApiRequestException apiEx)
+            {
                 logger.LogError(apiEx, "Telegram API polling error");
+            }
             else
+            {
                 logger.LogError(exception, "Telegram polling error");
+            }
 
-            await Task.Delay(5000, ct);
+            return Task.Delay(5000, ct);
         }
 
         async Task SendProblemJsonAsync(
             ITelegramBotClient botClient,
-            long chatId, DomainException? de,
+            long chatId,
+            DomainException? de,
             string correlationId,
+            CancellationToken ct,
             string? fallbackMessage = null)
         {
             int status;
@@ -138,25 +153,29 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
                     status = 400;
                     title = "Invalid command";
                     type = "https://plankton.local/problems/invalid-command";
-                    detail += ice.AllowedArgs != null
+                    detail += ice.AllowedArgs is not null
                         ? $" Allowed arguments: {string.Join(", ", ice.AllowedArgs)}"
                         : "";
                     break;
+
                 case UnauthorizedCommandException:
                     status = 401;
                     title = "Unauthorized";
                     type = "https://plankton.local/problems/unauthorized";
                     break;
+
                 case RateLimitExceededException:
                     status = 429;
                     title = "Rate limit exceeded";
                     type = "https://plankton.local/problems/rate-limit-exceeded";
                     break;
+
                 case EntityNotFoundException:
                     status = 404;
                     title = "Resource was not found";
                     type = "https://plankton.local/problems/resource-not-found";
                     break;
+
                 default:
                     status = 500;
                     title = "Internal error";
@@ -173,8 +192,23 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
                 correlationId
             };
 
-            var json = JsonSerializer.Serialize(problem);
-            await botClient.SendMessage(chatId, json, ParseMode.Markdown, cancellationToken: cancellationToken);
+            await SendJsonAsync(botClient, chatId, problem, ct);
         }
+    }
+
+    private static Task SendJsonAsync(
+        ITelegramBotClient botClient,
+        long chatId,
+        object payload,
+        CancellationToken cancellationToken)
+    {
+        var json = JsonSerializer.Serialize(payload, JsonOptions);
+
+        return botClient.SendMessage(
+            chatId: chatId,
+            text: $"<pre>{WebUtility.HtmlEncode(json)}</pre>",
+            parseMode: ParseMode.Html,
+            cancellationToken: cancellationToken
+        );
     }
 }
