@@ -419,4 +419,9 @@ public class BotEngine
             return ex.Types.Where(t => t != null)!;
         }
     }
+
+    public IEnumerable<string> GetAllBotNames()
+    {
+        return _bots.Select(b => b.Name);
+    }
 }

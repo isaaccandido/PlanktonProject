@@ -42,10 +42,21 @@ public sealed partial class BotCommandHandler(
 
     public Task<object?> HandleAsync(CommandModel command)
     {
-        if (command.Args.Count < 2) return Task.FromResult<object?>("Usage: bot <action> <botName>");
+        if (command.Args.Count < 1) return Task.FromResult<object?>("Usage: bot <action> <botName>");
 
         var action = command.Args[0].ToLowerInvariant();
-        var botName = command.Args[1];
+
+        if (action == "list")
+        {
+            var botList = botEngine.GetAllBotNames();
+
+            return Task.FromResult<object?>(new
+            {
+              bots = botList,   
+            });
+        }
+        
+        var botName = command.Args.Skip(1).Take(1).FirstOrDefault();
 
         if (action == "status")
         {
