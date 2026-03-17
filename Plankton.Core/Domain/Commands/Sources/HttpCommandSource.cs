@@ -23,9 +23,9 @@ public sealed partial class HttpCommandSource(
     private const string CommandEndpoint = "/command";
     private readonly string _baseAddress = configuration["application:baseAddress"] ?? string.Empty;
 
-    public event Func<CommandContext, Task<object?>>? CommandReceived;
-
     private WebApplication? _app;
+
+    public event Func<CommandContext, Task<object?>>? CommandReceived;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {

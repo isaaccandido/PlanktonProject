@@ -7,6 +7,10 @@ namespace Plankton.Bots.Implementations.RestReminder;
 
 public class RestReminderBot(BotWebTools botWebTools) : IBot
 {
+    private readonly HashSet<string> _sentToday = [];
+    private DateOnly _currentDay = DateOnly.FromDateTime(DateTime.Now);
+
+    private static string NotificationUrl => "https://ntfy.sh/Godofredo";
     public string Name => "RestReminder";
     public DataAccessType StateStorage => DataAccessType.InMemory;
 
@@ -18,11 +22,6 @@ public class RestReminderBot(BotWebTools botWebTools) : IBot
         RestartDelay = TimeSpan.FromSeconds(10)
     };
 
-    private static string NotificationUrl => "https://ntfy.sh/Godofredo";
-
-    private readonly HashSet<string> _sentToday = [];
-    private DateOnly _currentDay = DateOnly.FromDateTime(DateTime.Now);
-
     public async Task RunAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -30,7 +29,7 @@ public class RestReminderBot(BotWebTools botWebTools) : IBot
             var utcNow = DateTime.UtcNow;
             var brazilTimeZone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
             var brazilTime = TimeZoneInfo.ConvertTimeFromUtc(utcNow, brazilTimeZone);
-            
+
             ResetIfNewDay(brazilTime);
 
             if (!IsWorkday(brazilTime))
@@ -52,7 +51,7 @@ public class RestReminderBot(BotWebTools botWebTools) : IBot
     private async Task HandleBreakReminder(DateTime now, CancellationToken ct)
     {
         if (!IsWorkHour(now)) return;
-        if (now.Hour == 11) return;           // no break right before lunch
+        if (now.Hour == 11) return; // no break right before lunch
         if (now.Minute < 50) return;
 
         await SendOncePerHour(
@@ -66,7 +65,7 @@ public class RestReminderBot(BotWebTools botWebTools) : IBot
     private async Task HandleBackFromBreak(DateTime now, CancellationToken ct)
     {
         if (!IsWorkHour(now)) return;
-        if (now.Hour == 12) return;           // never during lunch
+        if (now.Hour == 12) return; // never during lunch
         if (now.Minute != 0) return;
 
         await SendOncePerHour(
@@ -136,11 +135,15 @@ public class RestReminderBot(BotWebTools botWebTools) : IBot
         _sentToday.Clear();
     }
 
-    private static bool IsWorkday(DateTime now) =>
-        now.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+    private static bool IsWorkday(DateTime now)
+    {
+        return now.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+    }
 
-    private static bool IsWorkHour(DateTime now) =>
-        now.Hour is >= 8 and < 18;
+    private static bool IsWorkHour(DateTime now)
+    {
+        return now.Hour is >= 8 and < 18;
+    }
 
     private async Task SendMessage(string message, CancellationToken ct)
     {

@@ -14,10 +14,9 @@ namespace Plankton.Core.Domain.Commands.Sources;
 
 public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger) : ICommandSource
 {
-    public event Func<CommandContext, Task<object?>>? CommandReceived;
-
     private ITelegramBotClient? _botClient;
     public string? Token { get; set; }
+    public event Func<CommandContext, Task<object?>>? CommandReceived;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -138,7 +137,7 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
                 case InvalidCommandException ice:
                     status = 400;
                     title = "Invalid command";
-                    type = $"https://plankton.local/problems/invalid-command";
+                    type = "https://plankton.local/problems/invalid-command";
                     detail += ice.AllowedArgs != null
                         ? $" Allowed arguments: {string.Join(", ", ice.AllowedArgs)}"
                         : "";
@@ -146,22 +145,22 @@ public sealed class TelegramCommandSource(ILogger<TelegramCommandSource> logger)
                 case UnauthorizedCommandException:
                     status = 401;
                     title = "Unauthorized";
-                    type = $"https://plankton.local/problems/unauthorized";
+                    type = "https://plankton.local/problems/unauthorized";
                     break;
                 case RateLimitExceededException:
                     status = 429;
                     title = "Rate limit exceeded";
-                    type = $"https://plankton.local/problems/rate-limit-exceeded";
+                    type = "https://plankton.local/problems/rate-limit-exceeded";
                     break;
                 case EntityNotFoundException:
                     status = 404;
                     title = "Resource was not found";
-                    type = $"https://plankton.local/problems/resource-not-found";
+                    type = "https://plankton.local/problems/resource-not-found";
                     break;
                 default:
                     status = 500;
                     title = "Internal error";
-                    type = $"https://plankton.local/problems/internal-error";
+                    type = "https://plankton.local/problems/internal-error";
                     break;
             }
 

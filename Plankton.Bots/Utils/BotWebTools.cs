@@ -1,11 +1,12 @@
-﻿using System.Net.Http.Headers;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Polly;
-using System.Collections.Concurrent;
 using Plankton.Bots.Models;
+using Polly;
 
 namespace Plankton.Bots.Utils;
 
@@ -14,11 +15,11 @@ public sealed class BotWebTools(
     IOptions<BotsHttpSettings> options,
     HttpClient? httpClient = null)
 {
-    private readonly BotsHttpSettings _settings = options.Value;
     private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
-    private readonly ConcurrentDictionary<string, AsyncPolicy<HttpResponseMessage>> _policies = new();
     private readonly ConcurrentDictionary<string, string> _idempotencyTokens = new();
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private readonly ConcurrentDictionary<string, AsyncPolicy<HttpResponseMessage>> _policies = new();
+    private readonly BotsHttpSettings _settings = options.Value;
 
     public async Task<T?> SendAsync<T>(
         HttpMethod method,
@@ -36,7 +37,7 @@ public sealed class BotWebTools(
         var policyKey = $"{botId}:{new Uri(targetUrl).Host}";
         var policy = _policies.GetOrAdd(policyKey, _ => CreatePolicy(policyKey, settings));
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         logger.LogInformation("[{BotId}] Sending {Method} request to {Url}", botId, method, targetUrl);
 
         using var response = await policy.ExecuteAsync(async token =>

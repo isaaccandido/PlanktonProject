@@ -13,11 +13,10 @@ public partial class PlanktonHostEngine(
     CommandBus commandBus,
     BotEngine botEngine)
 {
-    public required CliArgsResultModel CliArgs { get; set; } // TODO find an use for CLI args
-
     private readonly List<ICommandSource> _commandSources = [];
     private readonly CancellationTokenSource _cts = new();
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    public required CliArgsResultModel CliArgs { get; set; } // TODO find an use for CLI args
 
     public void RegisterCommandSource(ICommandSource source)
     {
